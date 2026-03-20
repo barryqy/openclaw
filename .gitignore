@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+reports/*.md
+reports/*.txt
+reports/*.json
+

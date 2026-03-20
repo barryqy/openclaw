@@ -1,0 +1,20 @@
+[skills]
+open_skills_enabled = false
+
+[agent]
+tool_call_dedup_exempt = []
+
+[[agent.tool_filter_groups]]
+mode = "always"
+tools = ["mcp_docs_*"]
+
+[[agent.tool_filter_groups]]
+mode = "dynamic"
+tools = ["mcp_browser_*", "mcp_fetch_*"]
+keywords = ["browse", "open url", "screenshot", "fetch"]
+
+[security.otp]
+enabled = true
+method = "totp"
+gated_actions = ["shell", "browser_open"]
+
