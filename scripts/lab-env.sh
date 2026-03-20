@@ -4,7 +4,17 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 export OPENCLAW_ROOT="${ROOT_DIR}"
 export ZEROCLAW_DIR="${ZEROCLAW_DIR:-/home/developer/src/zeroclaw}"
-export ZEROCLAW_BIN="${ZEROCLAW_BIN:-${ZEROCLAW_DIR}/target/release/zeroclaw}"
+
+if [ -z "${ZEROCLAW_BIN:-}" ]; then
+  if command -v zeroclaw >/dev/null 2>&1; then
+    export ZEROCLAW_BIN="$(command -v zeroclaw)"
+  elif [ -x "${HOME}/.cargo/bin/zeroclaw" ]; then
+    export ZEROCLAW_BIN="${HOME}/.cargo/bin/zeroclaw"
+  else
+    export ZEROCLAW_BIN="${ZEROCLAW_DIR}/target/release/zeroclaw"
+  fi
+fi
+
 export ZEROCLAW_CONFIG_DIR="${ZEROCLAW_CONFIG_DIR:-${ROOT_DIR}/.zeroclaw}"
 export ZEROCLAW_WORKSPACE="${ZEROCLAW_WORKSPACE:-${ZEROCLAW_CONFIG_DIR}/workspace}"
 export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"

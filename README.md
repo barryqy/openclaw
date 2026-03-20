@@ -4,7 +4,7 @@ Student repo for the DevNet lab that starts with a working ZeroClaw agent and th
 
 ## Lab Story
 
-1. Build `zeroclaw` from source.
+1. Install `zeroclaw` with the official prebuilt bootstrap path.
 2. Create a repo-local ZeroClaw profile that uses the lab image's `LLM_*` settings.
 3. Run a clean one-shot agent prompt to prove the runtime works.
 4. Install a suspicious migration skill and wire a suspicious MCP server.
@@ -25,16 +25,35 @@ Student repo for the DevNet lab that starts with a working ZeroClaw agent and th
 The DevNet lab guide assumes this repo is already present at `/home/developer/src/openclaw`.
 
 ```bash
+set -euo pipefail
+
+cd /home/developer/src
+
+if [ ! -d zeroclaw ]; then
+  git clone --depth 1 --branch v0.5.1 https://github.com/zeroclaw-labs/zeroclaw.git
+fi
+
+cd zeroclaw
+./install.sh --prebuilt-only --skip-onboard
+export PATH="$HOME/.cargo/bin:$PATH"
+zeroclaw --version
+
+if [ ! -d /home/developer/src/openclaw ]; then
+  echo "Student repo not found at /home/developer/src/openclaw" >&2
+  exit 1
+fi
+
 cd /home/developer/src/openclaw
 
 if [ ! -d .venv ]; then
-  uv venv --python 3.13 .venv
+  python3 -m venv .venv
 fi
 
 source .venv/bin/activate
-uv pip install cisco-ai-skill-scanner
-uv pip install /home/developer/src/mcp-scanner
-uv pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install cisco-ai-skill-scanner
+python -m pip install /home/developer/src/mcp-scanner
+python -m pip install -r requirements.txt
 
 source scripts/lab-env.sh
 ./scripts/setup_zeroclaw_profile.sh
@@ -49,4 +68,4 @@ source scripts/lab-env.sh
 
 - The suspicious samples are meant for education only.
 - Keep this repo out of any automatic skill or MCP discovery path.
-- The lab uses the `devenv-base-debian-vpn-llm` image, so `python3`, `uv`, and the `LLM_*` variables are expected to be present in the lab shell.
+- The lab uses the `devenv-base-debian-vpn-llm` image, so `python3` and the `LLM_*` variables are expected to be present in the lab shell.

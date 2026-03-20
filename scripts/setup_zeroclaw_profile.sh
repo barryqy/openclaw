@@ -10,7 +10,7 @@ openclaw_require_llm
 
 if [ ! -x "${ZEROCLAW_BIN}" ]; then
   echo "ZeroClaw binary not found at ${ZEROCLAW_BIN}" >&2
-  echo "Build zeroclaw first from /home/developer/src/zeroclaw" >&2
+  echo "Install zeroclaw first with ./install.sh --prebuilt-only --skip-onboard" >&2
   exit 1
 fi
 
