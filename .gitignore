@@ -1,6 +1,7 @@
 .venv/
+.zeroclaw/
 __pycache__/
 reports/*.md
 reports/*.txt
 reports/*.json
-
+.DS_Store

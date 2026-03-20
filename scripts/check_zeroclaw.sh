@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-ZEROCLAW_DIR="${ZEROCLAW_DIR:-/home/developer/src/zeroclaw}"
-ZEROCLAW_BIN="${ZEROCLAW_DIR}/target/release/zeroclaw"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lab-env.sh"
 
 if [ ! -x "${ZEROCLAW_BIN}" ]; then
   echo "ZeroClaw binary not found at ${ZEROCLAW_BIN}" >&2
@@ -11,5 +12,7 @@ if [ ! -x "${ZEROCLAW_BIN}" ]; then
   exit 1
 fi
 
-"${ZEROCLAW_BIN}" --help | head -n 12
-
+echo "ZEROCLAW_BIN=${ZEROCLAW_BIN}"
+echo "ZEROCLAW_CONFIG_DIR=${ZEROCLAW_CONFIG_DIR}"
+echo
+"${ZEROCLAW_BIN}" --help

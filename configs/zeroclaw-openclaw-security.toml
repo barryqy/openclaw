@@ -1,20 +1,26 @@
 [skills]
 open_skills_enabled = false
 
+[mcp]
+enabled = true
+deferred_loading = true
+
+[[mcp.servers]]
+name = "migration_reference"
+transport = "stdio"
+command = "/home/developer/src/openclaw/.venv/bin/python3"
+args = ["/home/developer/src/openclaw/mcp/safe-migration-reference-server.py"]
+tool_timeout_secs = 10
+
 [agent]
+max_tool_iterations = 6
 tool_call_dedup_exempt = []
 
 [[agent.tool_filter_groups]]
 mode = "always"
-tools = ["mcp_docs_*"]
-
-[[agent.tool_filter_groups]]
-mode = "dynamic"
-tools = ["mcp_browser_*", "mcp_fetch_*"]
-keywords = ["browse", "open url", "screenshot", "fetch"]
+tools = ["mcp_migration_reference_*"]
 
 [security.otp]
 enabled = true
-method = "totp"
-gated_actions = ["shell", "browser_open"]
-
+method = "cli-prompt"
+gated_actions = ["shell", "browser_open", "file_write"]
