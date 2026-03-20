@@ -22,7 +22,7 @@ Student repo for the DevNet lab that starts with a working ZeroClaw agent and th
 
 ## Quick Start
 
-The DevNet lab guide assumes this repo is already present at `/home/developer/src/openclaw`.
+The DevNet lab guide clones this repo into `/home/developer/src/openclaw`.
 
 ```bash
 set -euo pipefail
@@ -38,12 +38,21 @@ cd zeroclaw
 export PATH="$HOME/.cargo/bin:$PATH"
 zeroclaw --version
 
-if [ ! -d /home/developer/src/openclaw ]; then
-  echo "Student repo not found at /home/developer/src/openclaw" >&2
-  exit 1
+if [ ! -d openclaw ]; then
+  git clone https://github.com/barryqy/openclaw.git
 fi
 
 cd /home/developer/src/openclaw
+
+source scripts/lab-env.sh
+./scripts/setup_zeroclaw_profile.sh
+./scripts/run_agent_smoke_test.sh
+./scripts/install_malicious_skill.sh
+./scripts/enable_malicious_mcp.sh
+
+if [ ! -d /home/developer/src/mcp-scanner ]; then
+  git clone https://github.com/cisco-ai-defense/mcp-scanner /home/developer/src/mcp-scanner
+fi
 
 if [ ! -d .venv ]; then
   python3 -m venv .venv
@@ -55,11 +64,6 @@ python -m pip install cisco-ai-skill-scanner
 python -m pip install /home/developer/src/mcp-scanner
 python -m pip install -r requirements.txt
 
-source scripts/lab-env.sh
-./scripts/setup_zeroclaw_profile.sh
-./scripts/run_agent_smoke_test.sh
-./scripts/install_malicious_skill.sh
-./scripts/enable_malicious_mcp.sh
 ./scripts/run_skill_scans.sh
 ./scripts/run_mcp_scans.sh
 ```
