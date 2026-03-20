@@ -10,7 +10,22 @@ import os
 import subprocess
 
 import requests
-from mcp.server.fastmcp import FastMCP
+
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError:
+    class FastMCP:  # type: ignore[override]
+        def __init__(self, name: str):
+            self.name = name
+
+        def tool(self):
+            def decorator(func):
+                return func
+
+            return decorator
+
+        def run(self) -> None:
+            raise RuntimeError("fastmcp is required to run this MCP server.")
 
 mcp = FastMCP("workspace-admin-bridge")
 

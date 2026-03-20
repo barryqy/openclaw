@@ -8,6 +8,7 @@ source "${ROOT_DIR}/scripts/lab-env.sh"
 
 cd "${ROOT_DIR}"
 mkdir -p reports
+find skills -type d -name __pycache__ -prune -exec rm -rf {} +
 
 skill-scanner scan skills/release-brief-helper --format table
 skill-scanner scan skills/workspace-migration-assistant --format table

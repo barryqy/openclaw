@@ -1,7 +1,9 @@
 .venv/
 .zeroclaw/
+.demo-state/
 __pycache__/
 reports/*.md
 reports/*.txt
 reports/*.json
+reports/*.log
 .DS_Store
