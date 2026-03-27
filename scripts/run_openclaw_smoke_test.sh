@@ -14,8 +14,9 @@ fi
 openclaw_use_lab_openai_env
 
 current_primary=""
+needs_refresh="false"
 if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
-  current_primary="$(python3 - <<'PY'
+  config_probe="$(python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -28,13 +29,34 @@ primary = (
     .get("model", {})
     .get("primary", "")
 )
+entry = (
+    cfg.get("agents", {})
+    .get("defaults", {})
+    .get("models", {})
+    .get(primary, {})
+)
+params = entry.get("params", {}) if isinstance(entry, dict) else {}
+legacy = False
+if isinstance(params, dict):
+    legacy = "transport" in params or "tool_stream" in params
+
 print(primary if isinstance(primary, str) else "")
+print("legacy_params=" + ("true" if legacy else "false"))
 PY
 )"
+
+  current_primary="$(printf '%s\n' "${config_probe}" | sed -n '1p')"
+  if printf '%s\n' "${config_probe}" | sed -n '2p' | grep -q 'legacy_params=true'; then
+    needs_refresh="true"
+  fi
 fi
 
 case "${current_primary}" in
   "${OPENCLAW_CUSTOM_PROVIDER_ID}/"*)
+    if [ "${needs_refresh}" = "true" ]; then
+      echo "Refreshing OpenClaw config for the lab LLM..."
+      bash "${ROOT_DIR}/scripts/install_openclaw.sh" >/dev/null
+    fi
     ;;
   *)
     echo "Refreshing OpenClaw config for the lab LLM..."

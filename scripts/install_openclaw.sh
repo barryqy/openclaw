@@ -185,11 +185,12 @@ agents.setdefault("model", {})["primary"] = primary_model
 
 models = agents.setdefault("models", {})
 entry = models.setdefault(primary_model, {})
-params = entry.setdefault("params", {})
-
-# The lab LLM is an OpenAI-compatible proxy, so SSE is the safer path.
-params["transport"] = "sse"
-params["tool_stream"] = False
+params = entry.get("params")
+if isinstance(params, dict):
+    params.pop("transport", None)
+    params.pop("tool_stream", None)
+    if not params:
+        entry.pop("params", None)
 
 model_defaults = {
     "id": model_id,
