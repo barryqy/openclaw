@@ -172,7 +172,13 @@ config_path = Path(os.environ["OPENCLAW_CONFIG_FILE"]).expanduser()
 cfg = json.loads(config_path.read_text(encoding="utf-8"))
 
 model_id = os.environ.get("OPENCLAW_LLM_MODEL", "gpt-4o")
-primary_model = f"openai/{model_id}"
+provider_id = os.environ.get("OPENCLAW_CUSTOM_PROVIDER_ID", "llm-image")
+base_url = os.environ.get("OPENCLAW_LLM_API_BASE", "").strip()
+api_key = os.environ.get("LLM_API_KEY", "").strip()
+primary_model = f"{provider_id}/{model_id}"
+
+if not base_url:
+    raise SystemExit("OPENCLAW_LLM_API_BASE is required to normalize openclaw.json.")
 
 agents = cfg.setdefault("agents", {}).setdefault("defaults", {})
 agents.setdefault("model", {})["primary"] = primary_model
@@ -185,11 +191,48 @@ params = entry.setdefault("params", {})
 params["transport"] = "sse"
 params["tool_stream"] = False
 
-providers = cfg.setdefault("models", {}).setdefault("providers", {})
-providers.pop("llm-image", None)
+model_defaults = {
+    "id": model_id,
+    "name": f"{model_id} (Custom Provider)",
+    "contextWindow": 16000,
+    "maxTokens": 4096,
+    "input": ["text"],
+    "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+    },
+    "reasoning": False,
+}
+
+models_cfg = cfg.setdefault("models", {})
+models_cfg["mode"] = models_cfg.get("mode") or "merge"
+providers = models_cfg.setdefault("providers", {})
+existing_provider = providers.get(provider_id) or {}
+existing_api_key = existing_provider.get("apiKey")
+existing_models = existing_provider.get("models")
+
+merged_models = []
+if isinstance(existing_models, list):
+    for item in existing_models:
+        if not isinstance(item, dict):
+            continue
+        merged_models.append(item)
+
+if not any(item.get("id") == model_id for item in merged_models):
+    merged_models.append(model_defaults)
+
+providers[provider_id] = {
+    **{k: v for k, v in existing_provider.items() if k not in {"apiKey", "models", "api", "baseUrl"}},
+    "baseUrl": base_url,
+    "api": "openai-completions",
+    **({"apiKey": api_key} if api_key else ({"apiKey": existing_api_key} if existing_api_key else {})),
+    "models": merged_models or [model_defaults],
+}
 
 config_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-print(f"Updated {config_path} for {primary_model} via OPENAI_BASE_URL.")
+print(f"Updated {config_path} for {primary_model} via custom provider {provider_id}.")
 PY
 }
 
@@ -210,6 +253,7 @@ if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
   echo
   openclaw config file
   echo
+  bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
   bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
   exit 0
 fi
@@ -220,8 +264,12 @@ openclaw onboard \
   --workspace "${OPENCLAW_WORKSPACE}" \
   --mode local \
   --flow quickstart \
-  --auth-choice openai-api-key \
-  --openai-api-key "${OPENAI_API_KEY}" \
+  --auth-choice custom-api-key \
+  --custom-base-url "${OPENCLAW_LLM_API_BASE}" \
+  --custom-model-id "${OPENCLAW_LLM_MODEL}" \
+  --custom-api-key "${LLM_API_KEY}" \
+  --custom-provider-id "${OPENCLAW_CUSTOM_PROVIDER_ID}" \
+  --custom-compatibility openai \
   --skip-health \
   --skip-channels \
   --skip-skills \
@@ -232,4 +280,5 @@ normalize_lab_openclaw_config
 echo
 openclaw config file
 echo
+bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
