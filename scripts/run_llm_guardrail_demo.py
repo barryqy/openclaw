@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,31 @@ WORKSPACE_DIR = Path(
 ).expanduser()
 
 
+def derive_litellm_master_key(cfg: dict) -> str:
+    env_key = os.environ.get("LITELLM_MASTER_KEY", "")
+    if env_key:
+        return env_key
+
+    gateway_cfg = cfg.get("gateway", {})
+    candidates = [
+        gateway_cfg.get("device_key_file", ""),
+        str(Path.home() / ".defenseclaw" / "device.key"),
+    ]
+
+    for raw_path in candidates:
+        if not raw_path:
+            continue
+
+        path = Path(raw_path).expanduser()
+        try:
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+        except OSError:
+            continue
+        return f"sk-dc-{digest}"
+
+    return "sk-dc-local-dev"
+
+
 def load_defenseclaw_settings() -> tuple[str, str, str]:
     cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
     litellm_path = Path.home() / ".defenseclaw" / "litellm_config.yaml"
@@ -32,9 +58,7 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
         raise SystemExit("DefenseClaw guardrail.model_name is empty.")
 
     litellm_cfg = yaml.safe_load(litellm_path.read_text(encoding="utf-8")) or {}
-    master_key = litellm_cfg.get("general_settings", {}).get("master_key", "")
-    if not master_key:
-        raise SystemExit("Could not find LiteLLM master_key in ~/.defenseclaw/litellm_config.yaml.")
+    master_key = derive_litellm_master_key(cfg)
 
     return f"http://127.0.0.1:{port}/v1/chat/completions", master_key, model_name
 

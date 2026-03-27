@@ -3,11 +3,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lab-env.sh"
 
 if ! command -v openclaw >/dev/null 2>&1; then
   echo "OpenClaw is not available in this pod." >&2
   exit 1
 fi
+
+"${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure >/dev/null
 
 PROMPT="$(cat <<EOF
 You are validating a fresh OpenClaw lab install.

@@ -22,7 +22,9 @@ echo "OPENCLAW_HOME=${OPENCLAW_HOME}"
 echo "OPENCLAW_STATE_DIR=${OPENCLAW_STATE_DIR}"
 echo "OPENCLAW_CONFIG_FILE=${OPENCLAW_CONFIG_FILE}"
 echo "OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}"
+echo "OPENCLAW_GATEWAY_HOST=${OPENCLAW_GATEWAY_HOST}"
+echo "OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT}"
 echo
 openclaw config file
 echo
-openclaw gateway status
+"${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" status || "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure

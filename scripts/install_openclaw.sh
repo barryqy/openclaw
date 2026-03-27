@@ -174,7 +174,7 @@ if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
   echo
   openclaw config file
   echo
-  openclaw gateway status
+  "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
   exit 0
 fi
 
@@ -190,7 +190,6 @@ openclaw onboard \
   --custom-api-key "${LLM_API_KEY}" \
   --custom-provider-id llm-image \
   --custom-compatibility openai \
-  --install-daemon \
   --skip-channels \
   --skip-skills \
   --skip-ui
@@ -198,4 +197,4 @@ openclaw onboard \
 echo
 openclaw config file
 echo
-openclaw gateway status
+"${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
