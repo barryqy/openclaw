@@ -15,6 +15,15 @@ fi
 
 mkdir -p "${OPENCLAW_WORKSPACE}"
 
+if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
+  echo "OpenClaw is already configured for this lab."
+  echo
+  openclaw config file
+  echo
+  openclaw gateway status
+  exit 0
+fi
+
 openclaw onboard \
   --non-interactive \
   --workspace "${OPENCLAW_WORKSPACE}" \

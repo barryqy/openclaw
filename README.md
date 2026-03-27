@@ -2,7 +2,7 @@
 
 Student repo for the DevNet Learning Lab that tells one clear story:
 
-1. start from the image's preloaded OpenClaw setup
+1. install and configure OpenClaw with one non-interactive lab helper
 2. prove the agent is alive
 3. let a malicious skill and MCP server cause real trouble
 4. trigger prompt injection and privacy-risk prompts against the same LLM path
@@ -25,11 +25,12 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 
 ## Quick Start
 
-The DevNet lab guide clones this repo into `/home/developer/src/openclaw`, verifies the image's preloaded OpenClaw setup, and then uses short helper scripts like these:
+The DevNet lab guide clones this repo into `/home/developer/src/openclaw`, uses one helper to install and configure OpenClaw without any wizard choices, and then verifies the result with a second helper:
 
 ```bash
 cd /home/developer/src/openclaw
 ./scripts/bootstrap_lab.sh
+./scripts/install_openclaw.sh
 ./scripts/check_openclaw.sh
 ./scripts/run_openclaw_smoke_test.sh
 ./scripts/prepare_live_demo.sh
@@ -52,4 +53,4 @@ cd /home/developer/src/openclaw
 
 - Everything malicious in this repo is fake, local, and for education only.
 - The exfiltration demo only posts to `127.0.0.1`.
-- The lab assumes the DevNet image already provides the built-in `LLM_*` variables and a preconfigured OpenClaw install.
+- The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
