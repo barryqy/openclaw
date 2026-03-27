@@ -8,10 +8,22 @@ import json
 from pathlib import Path
 
 import requests
+import yaml
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-API_URL = "http://127.0.0.1:18790/api/v1/inspect/tool"
+
+
+def load_sidecar_api_url() -> str:
+    cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
+    api_port = 18970
+
+    if cfg_path.exists():
+        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        gateway_cfg = cfg.get("gateway", {})
+        api_port = int(gateway_cfg.get("api_port", api_port))
+
+    return f"http://127.0.0.1:{api_port}/api/v1/inspect/tool"
 
 
 def load_bridge():
@@ -26,15 +38,24 @@ def load_bridge():
 
 
 def inspect(tool: str, args: dict) -> dict:
-    response = requests.post(
-        API_URL,
-        headers={
-            "Content-Type": "application/json",
-            "X-DefenseClaw-Client": "openclaw-lab",
-        },
-        json={"tool": tool, "args": args},
-        timeout=10,
-    )
+    api_url = load_sidecar_api_url()
+    try:
+        response = requests.post(
+            api_url,
+            headers={
+                "Content-Type": "application/json",
+                "X-DefenseClaw-Client": "openclaw-lab",
+            },
+            json={"tool": tool, "args": args},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        raise SystemExit(
+            "DefenseClaw sidecar API is not reachable. "
+            "Run ./scripts/configure_defenseclaw.sh or restart defenseclaw-gateway, "
+            f"then retry. url={api_url} error={exc}"
+        ) from exc
+
     response.raise_for_status()
     return response.json()
 

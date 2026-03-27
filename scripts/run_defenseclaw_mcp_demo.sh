@@ -16,9 +16,61 @@ if [ ! -d "${DEFENSECLAW_DIR}" ]; then
   exit 1
 fi
 
+sidecar_health() {
+  python3 - <<'PY'
+from pathlib import Path
+import urllib.request
+
+import yaml
+
+
+cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
+api_port = 18970
+
+if cfg_path.exists():
+    cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+    gateway_cfg = cfg.get("gateway", {})
+    api_port = int(gateway_cfg.get("api_port", api_port))
+
+url = f"http://127.0.0.1:{api_port}/health"
+try:
+    with urllib.request.urlopen(url, timeout=2) as resp:
+        raise SystemExit(0 if resp.status == 200 else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+ensure_sidecar() {
+  if sidecar_health; then
+    return 0
+  fi
+
+  echo "Starting DefenseClaw sidecar for guarded MCP checks..."
+  if command -v defenseclaw-gateway >/dev/null 2>&1; then
+    if ! defenseclaw-gateway restart >/tmp/defenseclaw-sidecar.log 2>&1; then
+      defenseclaw-gateway start >/tmp/defenseclaw-sidecar.log 2>&1 || true
+    fi
+  fi
+
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if sidecar_health; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "DefenseClaw sidecar API did not become ready." >&2
+  echo "Recent sidecar output:" >&2
+  cat /tmp/defenseclaw-sidecar.log >&2 || true
+  return 1
+}
+
 cd "${DEFENSECLAW_DIR}"
 # shellcheck disable=SC1091
 source .venv/bin/activate
+
+ensure_sidecar
 
 defenseclaw mcp set safe_reference \
   --command "$(command -v python3)" \
