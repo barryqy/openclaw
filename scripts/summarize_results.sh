@@ -50,16 +50,16 @@ privacy_after = read_json("privacy-guarded.json")
 
 summary = [
     {
-        "attack": "Malicious skill",
+        "attack": "🚨 Malicious skill",
         "before": "fake secret exfiltration succeeded" if skill_before else "not run",
         "after": (
-            f"quarantined after DefenseClaw scan ({skill_after_summary.get('malicious_skill_max_severity') or scan_max_severity(skill_after)})"
-            if skill_after_summary.get("malicious_skill_quarantined")
+            f"blocked and removed from the active workspace ({skill_after_summary.get('malicious_skill_scan_verdict') or scan_max_severity(skill_after)})"
+            if skill_after_summary.get("malicious_skill_blocked_from_workspace")
             else "not run"
         ),
     },
     {
-        "attack": "Malicious MCP",
+        "attack": "🚨 Malicious MCP",
         "before": "secret read and code execution succeeded" if mcp_before else "not run",
         "after": (
             "tool calls blocked by DefenseClaw"

@@ -42,8 +42,14 @@ skills_dir = Path(os.environ["OPENCLAW_SKILLS_DIR_ENV"])
 safe_skill = json.loads((root / "reports" / "defenseclaw-safe-skill-deploy.json").read_text())
 mcp_text = (root / "reports" / "defenseclaw-safe-mcp-deploy.txt").read_text(encoding="utf-8")
 
+def scan_verdict(scan_result):
+    findings = scan_result.get("findings", [])
+    if not findings:
+        return "CLEAN"
+    return "FINDINGS_PRESENT"
+
 summary = {
-    "safe_skill_findings": len(safe_skill.get("findings", [])),
+    "safe_skill_scan_verdict": scan_verdict(safe_skill),
     "safe_skill_installed": (skills_dir / "release-brief-helper").exists(),
     "safe_mcp_name": "safe_reference_live",
     "safe_mcp_registered": "Added MCP server: safe_reference_live" in mcp_text,

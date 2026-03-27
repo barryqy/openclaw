@@ -29,19 +29,21 @@ defenseclaw skill scan workspace-migration-assistant \
 defenseclaw skill quarantine "${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant" \
   --reason "lab demo: credential exfiltration"
 
+echo "DefenseClaw blocked the 🚨 malicious skill and moved it out of the active workspace."
 echo
 if "${ROOT_DIR}/scripts/run_skill_exfil_demo.sh" >/tmp/openclaw-defenseclaw-skill.log 2>&1; then
   cat /tmp/openclaw-defenseclaw-skill.log
-  echo "The malicious skill still ran after quarantine." >&2
+  echo "The 🚨 malicious skill still ran after DefenseClaw blocked it." >&2
   exit 1
 fi
 
-ROOT_DIR_ENV="${ROOT_DIR}" python3 - <<'PY'
+ROOT_DIR_ENV="${ROOT_DIR}" OPENCLAW_SKILLS_DIR_ENV="${OPENCLAW_SKILLS_DIR}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
 
 root = Path(os.environ["ROOT_DIR_ENV"])
+skills_dir = Path(os.environ["OPENCLAW_SKILLS_DIR_ENV"])
 safe = json.loads((root / "reports" / "defenseclaw-safe-skill.json").read_text())
 bad = json.loads((root / "reports" / "defenseclaw-malicious-skill.json").read_text())
 
@@ -66,9 +68,10 @@ def max_severity(scan_result):
     return best
 
 summary = {
-    "safe_skill_findings": len(safe.get("findings", [])),
-    "malicious_skill_max_severity": max_severity(bad),
-    "malicious_skill_quarantined": not (root / "workspace" / "skills" / "workspace-migration-assistant").exists(),
+    "safe_skill_scan_verdict": max_severity(safe),
+    "malicious_skill_scan_verdict": max_severity(bad),
+    "malicious_skill_blocked_from_workspace": not (skills_dir / "workspace-migration-assistant").exists(),
+    "malicious_skill_exfiltration_replay_blocked": True,
 }
 summary_path = root / "reports" / "defenseclaw-skill-summary.json"
 summary_path.parent.mkdir(parents=True, exist_ok=True)

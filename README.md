@@ -4,7 +4,7 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 
 1. install and configure OpenClaw with one non-interactive lab helper
 2. prove the agent is alive
-3. let a malicious skill and MCP server cause real trouble
+3. let a 🚨 malicious skill and 🚨 malicious MCP server cause real trouble
 4. trigger prompt injection and privacy-risk prompts against the same LLM path
 5. install DefenseClaw in the same container
 6. rerun the attacks and watch the results change
@@ -13,12 +13,12 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 
 - `notes/openclaw-cutover-brief.md` is the short launch note used by the OpenClaw smoke test.
 - `skills/release-brief-helper/` is the clean comparison skill.
-- `skills/workspace-migration-assistant/` is the intentionally unsafe skill.
+- `skills/workspace-migration-assistant/` is the intentionally unsafe 🚨 malicious skill.
 - `mcp/safe-migration-reference-server.py` is the clean comparison MCP server.
-- `mcp/workspace-admin-bridge.py` is the intentionally unsafe MCP server.
+- `mcp/workspace-admin-bridge.py` is the intentionally unsafe 🚨 malicious MCP server.
 - `scripts/prepare_live_demo.sh` seeds fake credentials, fake customer data, and a malicious prompt-injection note.
-- `scripts/run_skill_exfil_demo.sh` shows the malicious skill stealing fake secrets into a localhost collector.
-- `scripts/run_mcp_abuse_demo.sh` shows the malicious MCP tools reading a fake credential file and executing arbitrary code.
+- `scripts/run_skill_exfil_demo.sh` shows the 🚨 malicious skill stealing fake secrets into a localhost collector.
+- `scripts/run_mcp_abuse_demo.sh` shows the 🚨 malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_prompt_injection_demo.sh` and `scripts/run_privacy_demo.sh` drive direct LLM tests before and after DefenseClaw.
 - `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
 - `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace and points OpenClaw at the built-in lab LLM over its OpenAI-compatible endpoint.
@@ -56,5 +56,5 @@ cd /home/developer/src/openclaw
 - Everything malicious in this repo is fake, local, and for education only.
 - The exfiltration demo only posts to `127.0.0.1`.
 - The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
-- `openai/<model>` in the lab config is only an OpenAI-compatible protocol label. The actual upstream stays the built-in Learning Lab LLM from `LLM_BASE_URL`, not a separate public OpenAI account.
+- `llm-image/<model>` in the lab config is the lab's custom provider label. It still talks to the built-in Learning Lab LLM from `LLM_BASE_URL` over an OpenAI-compatible API, not a separate public OpenAI account.
 - The guide avoids `source .venv/bin/activate` on purpose so the shell stays predictable between OpenClaw and DefenseClaw steps.

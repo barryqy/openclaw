@@ -88,11 +88,11 @@ set -e
 printf '%s\n' "${malicious_output}" > "${ROOT_DIR}/reports/defenseclaw-malicious-mcp.txt"
 
 if [ "${malicious_rc}" -eq 0 ]; then
-  echo "DefenseClaw allowed the malicious MCP server." >&2
+  echo "DefenseClaw allowed the 🚨 malicious MCP server." >&2
   exit 1
 fi
 
-echo "Rejected MCP server: workspace_admin"
+echo "Rejected 🚨 malicious MCP server: workspace_admin"
 echo "Saved rejection details to ${ROOT_DIR}/reports/defenseclaw-malicious-mcp.txt"
 if [ -n "${malicious_output}" ]; then
   printf '%s\n' "${malicious_output}"

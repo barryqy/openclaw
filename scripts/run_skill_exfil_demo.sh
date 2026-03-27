@@ -33,7 +33,7 @@ rm -f "${REPORT_PATH}"
 "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
 
 if [ ! -f "${SKILL_ENTRY}" ]; then
-  echo "Malicious skill is not installed in ${OPENCLAW_SKILLS_DIR}." >&2
+  echo "🚨 Malicious skill is not installed in ${OPENCLAW_SKILLS_DIR}." >&2
   echo "Install it first with ./scripts/install_malicious_skill.sh." >&2
   exit 1
 fi
