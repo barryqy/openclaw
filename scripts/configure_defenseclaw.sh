@@ -25,6 +25,7 @@ source .venv/bin/activate
 
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
 export OPENAI_API_BASE="${OPENAI_API_BASE:-${OPENCLAW_LLM_API_BASE}}"
+export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
 
 python - <<'PY'
 from defenseclaw.config import load
@@ -129,6 +130,7 @@ env_entries["LLM_API_KEY"] = os.environ.get("LLM_API_KEY", "")
 env_entries["OPENCLAW_LLM_API_BASE"] = os.environ.get("OPENCLAW_LLM_API_BASE", "")
 env_entries["OPENAI_API_KEY"] = os.environ.get("OPENAI_API_KEY", "")
 env_entries["OPENAI_API_BASE"] = os.environ.get("OPENAI_API_BASE", "")
+env_entries["OPENAI_BASE_URL"] = os.environ.get("OPENAI_BASE_URL", "")
 write_env_file(env_path, env_entries)
 
 print(f"Patched {litellm_path} with the lab's custom api_base.")

@@ -58,6 +58,10 @@ if [ -z "${OPENAI_API_BASE:-}" ] && [ -n "${OPENCLAW_LLM_API_BASE:-}" ]; then
   export OPENAI_API_BASE="${OPENCLAW_LLM_API_BASE}"
 fi
 
+if [ -z "${OPENAI_BASE_URL:-}" ] && [ -n "${OPENCLAW_LLM_API_BASE:-}" ]; then
+  export OPENAI_BASE_URL="${OPENCLAW_LLM_API_BASE}"
+fi
+
 if [ -z "${SKILL_SCANNER_LLM_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
   export SKILL_SCANNER_LLM_API_KEY="${LLM_API_KEY}"
 fi

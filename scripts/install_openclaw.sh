@@ -158,6 +158,9 @@ openclaw_require_llm
 
 ensure_node_runtime
 
+export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
+export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
+
 if ! command -v openclaw >/dev/null 2>&1; then
   echo "Installing OpenClaw CLI..."
   SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g --prefix "${HOME}/.local" openclaw@latest
@@ -184,16 +187,39 @@ openclaw onboard \
   --workspace "${OPENCLAW_WORKSPACE}" \
   --mode local \
   --flow quickstart \
-  --auth-choice custom-api-key \
-  --custom-base-url "${LLM_BASE_URL}" \
-  --custom-model-id "${OPENCLAW_LLM_MODEL}" \
-  --custom-api-key "${LLM_API_KEY}" \
-  --custom-provider-id llm-image \
-  --custom-compatibility openai \
+  --auth-choice openai-api-key \
+  --openai-api-key "${OPENAI_API_KEY}" \
   --skip-health \
   --skip-channels \
   --skip-skills \
   --skip-ui
+
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+config_path = Path(os.environ["OPENCLAW_CONFIG_FILE"]).expanduser()
+cfg = json.loads(config_path.read_text(encoding="utf-8"))
+
+model_id = os.environ.get("OPENCLAW_LLM_MODEL", "gpt-4o")
+primary_model = f"openai/{model_id}"
+
+agents = cfg.setdefault("agents", {}).setdefault("defaults", {})
+agents.setdefault("model", {})["primary"] = primary_model
+
+models = agents.setdefault("models", {})
+entry = models.setdefault(primary_model, {})
+params = entry.setdefault("params", {})
+
+# The lab LLM is an OpenAI-compatible proxy, so SSE is the safer path.
+params["transport"] = "sse"
+params["tool_stream"] = False
+
+config_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+print(f"Updated {config_path} for {primary_model} via OPENAI_BASE_URL.")
+PY
 
 echo
 openclaw config file
