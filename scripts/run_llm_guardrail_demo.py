@@ -53,11 +53,37 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
     cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
     guardrail = cfg.get("guardrail", {})
     port = guardrail.get("port", 4000)
-    model_name = guardrail.get("model_name", "")
-    if not model_name:
-        raise SystemExit("DefenseClaw guardrail.model_name is empty.")
-
     litellm_cfg = yaml.safe_load(litellm_path.read_text(encoding="utf-8")) or {}
+    model_name = str(guardrail.get("model_name", "")).strip()
+
+    if not model_name:
+        model_list = litellm_cfg.get("model_list", [])
+        if model_list:
+            first_entry = model_list[0] or {}
+            model_name = str(first_entry.get("model_name", "")).strip()
+
+    if not model_name:
+        try:
+            openclaw_cfg = json.loads(
+                (Path.home() / ".openclaw" / "openclaw.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            openclaw_cfg = {}
+
+        primary_model = (
+            openclaw_cfg.get("agents", {})
+            .get("defaults", {})
+            .get("model", {})
+            .get("primary", "")
+        )
+        if isinstance(primary_model, str) and primary_model.startswith("litellm/"):
+            model_name = primary_model.split("/", 1)[1].strip()
+
+    if not model_name:
+        raise SystemExit(
+            "DefenseClaw guardrail.model_name is empty and no LiteLLM model_name could be derived."
+        )
+
     master_key = derive_litellm_master_key(cfg)
 
     return f"http://127.0.0.1:{port}/v1/chat/completions", master_key, model_name

@@ -103,17 +103,30 @@ guardrail_cfg = cfg.get("guardrail", {})
 model_name = str(guardrail_cfg.get("model_name", "")).strip()
 upstream_model = str(guardrail_cfg.get("model", "")).strip()
 
-if not model_name or not upstream_model:
-    raise SystemExit("DefenseClaw guardrail config is incomplete after setup.")
-
 litellm_cfg = yaml.safe_load(litellm_path.read_text(encoding="utf-8")) or {}
 model_list = litellm_cfg.setdefault("model_list", [])
 if not model_list:
     raise SystemExit("LiteLLM config did not contain a model_list entry.")
 
 entry = model_list[0]
-entry["model_name"] = model_name
+entry_model_name = str(entry.get("model_name", "")).strip()
 params = entry.setdefault("litellm_params", {})
+entry_upstream_model = str(params.get("model", "")).strip()
+
+if not model_name:
+    model_name = entry_model_name
+if not upstream_model:
+    upstream_model = entry_upstream_model
+
+if not model_name or not upstream_model:
+    raise SystemExit("DefenseClaw guardrail config is incomplete after setup.")
+
+guardrail_cfg["model_name"] = model_name
+guardrail_cfg["model"] = upstream_model
+cfg["guardrail"] = guardrail_cfg
+cfg_path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False), encoding="utf-8")
+
+entry["model_name"] = model_name
 params["model"] = upstream_model
 params["api_key"] = "os.environ/LLM_API_KEY"
 params["api_base"] = "os.environ/OPENCLAW_LLM_API_BASE"
