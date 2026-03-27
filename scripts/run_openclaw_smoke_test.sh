@@ -11,7 +11,7 @@ if ! command -v openclaw >/dev/null 2>&1; then
   exit 1
 fi
 
-"${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure >/dev/null
+bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure >/dev/null
 
 PROMPT="$(cat <<EOF
 You are validating a fresh OpenClaw lab install.

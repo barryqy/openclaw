@@ -27,4 +27,4 @@ echo "OPENCLAW_GATEWAY_PORT=${OPENCLAW_GATEWAY_PORT}"
 echo
 openclaw config file
 echo
-"${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" status || "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
+bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" status || bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
