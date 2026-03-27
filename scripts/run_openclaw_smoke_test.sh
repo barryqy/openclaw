@@ -11,6 +11,8 @@ if ! command -v openclaw >/dev/null 2>&1; then
   exit 1
 fi
 
+openclaw_use_lab_openai_env
+
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure >/dev/null
 
 PROMPT="$(cat <<EOF

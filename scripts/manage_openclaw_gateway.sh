@@ -58,6 +58,8 @@ start_gateway() {
   local pid
   local gateway_args
 
+  openclaw_use_lab_openai_env >/dev/null
+
   mkdir -p "${OPENCLAW_STATE_DIR}"
 
   if pid="$(read_pid 2>/dev/null)" && is_pid_alive "${pid}"; then
@@ -87,6 +89,9 @@ start_gateway() {
     LLM_BASE_URL="${LLM_BASE_URL:-}" \
     LLM_API_KEY="${LLM_API_KEY:-}" \
     LLM_MODEL="${LLM_MODEL:-}" \
+    OPENAI_API_KEY="${OPENAI_API_KEY:-}" \
+    OPENAI_API_BASE="${OPENAI_API_BASE:-}" \
+    OPENAI_BASE_URL="${OPENAI_BASE_URL:-}" \
     openclaw "${gateway_args[@]}" >"${OPENCLAW_GATEWAY_LOG_FILE}" 2>&1 &
   pid=$!
 

@@ -93,6 +93,14 @@ openclaw_require_llm() {
   fi
 }
 
+openclaw_use_lab_openai_env() {
+  openclaw_require_llm || return 1
+
+  export OPENAI_API_KEY="${LLM_API_KEY}"
+  export OPENAI_API_BASE="${OPENCLAW_LLM_API_BASE}"
+  export OPENAI_BASE_URL="${OPENCLAW_LLM_API_BASE}"
+}
+
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   echo "OPENCLAW_ROOT=${OPENCLAW_ROOT}"
   echo "OPENCLAW_HOME=${OPENCLAW_HOME}"
