@@ -161,40 +161,8 @@ ensure_node_runtime
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
 
-if ! command -v openclaw >/dev/null 2>&1; then
-  echo "Installing OpenClaw CLI..."
-  SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g --prefix "${HOME}/.local" openclaw@latest
-  export PATH="${HOME}/.local/bin:${PATH}"
-  hash -r
-fi
-
-echo "OpenClaw ready: $(openclaw --version)"
-
-mkdir -p "${OPENCLAW_WORKSPACE}"
-
-if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
-  echo "OpenClaw is already configured for this lab."
-  echo
-  openclaw config file
-  echo
-  bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
-  exit 0
-fi
-
-openclaw onboard \
-  --accept-risk \
-  --non-interactive \
-  --workspace "${OPENCLAW_WORKSPACE}" \
-  --mode local \
-  --flow quickstart \
-  --auth-choice openai-api-key \
-  --openai-api-key "${OPENAI_API_KEY}" \
-  --skip-health \
-  --skip-channels \
-  --skip-skills \
-  --skip-ui
-
-python3 - <<'PY'
+normalize_lab_openclaw_config() {
+  python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -217,9 +185,49 @@ params = entry.setdefault("params", {})
 params["transport"] = "sse"
 params["tool_stream"] = False
 
+providers = cfg.setdefault("models", {}).setdefault("providers", {})
+providers.pop("llm-image", None)
+
 config_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
 print(f"Updated {config_path} for {primary_model} via OPENAI_BASE_URL.")
 PY
+}
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "Installing OpenClaw CLI..."
+  SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g --prefix "${HOME}/.local" openclaw@latest
+  export PATH="${HOME}/.local/bin:${PATH}"
+  hash -r
+fi
+
+echo "OpenClaw ready: $(openclaw --version)"
+
+mkdir -p "${OPENCLAW_WORKSPACE}"
+
+if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
+  echo "OpenClaw is already configured for this lab."
+  normalize_lab_openclaw_config
+  echo
+  openclaw config file
+  echo
+  bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
+  exit 0
+fi
+
+openclaw onboard \
+  --accept-risk \
+  --non-interactive \
+  --workspace "${OPENCLAW_WORKSPACE}" \
+  --mode local \
+  --flow quickstart \
+  --auth-choice openai-api-key \
+  --openai-api-key "${OPENAI_API_KEY}" \
+  --skip-health \
+  --skip-channels \
+  --skip-skills \
+  --skip-ui
+
+normalize_lab_openclaw_config
 
 echo
 openclaw config file
