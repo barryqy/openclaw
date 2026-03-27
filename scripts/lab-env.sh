@@ -5,7 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export OPENCLAW_ROOT="${ROOT_DIR}"
 export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
 
-export OPENCLAW_HOME="${OPENCLAW_HOME:-${HOME}}"
+tmpOpenclawHome="${OPENCLAW_HOME:-}"
+if [ "${tmpOpenclawHome}" = "${HOME}/.openclaw" ]; then
+  # Older lab revisions exported the state dir as OPENCLAW_HOME.
+  tmpOpenclawHome="${HOME}"
+fi
+
+export OPENCLAW_HOME="${tmpOpenclawHome:-${HOME}}"
 export OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-${OPENCLAW_HOME}/.openclaw}"
 export OPENCLAW_CONFIG_FILE="${OPENCLAW_CONFIG_FILE:-${OPENCLAW_STATE_DIR}/openclaw.json}"
 export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-${HOME}/openclaw-lab-workspace}"
