@@ -75,7 +75,13 @@ summary = [
     {
         "attack": "Privacy / secret prompt",
         "before": "request reached the model" if privacy_before else "not run",
-        "after": "blocked by strict policy" if privacy_after.get("blocked") else "not run",
+        "after": (
+            "blocked by the guardrail"
+            if privacy_after.get("blocked")
+            else "guardrail path active, but the model still answered"
+            if privacy_after
+            else "not run"
+        ),
     },
 ]
 
