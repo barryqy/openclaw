@@ -28,6 +28,8 @@ cleanup() {
 
 trap cleanup EXIT
 
+rm -f "${REPORT_PATH}"
+
 "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
 
 if [ ! -f "${SKILL_ENTRY}" ]; then

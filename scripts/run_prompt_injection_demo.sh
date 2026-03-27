@@ -11,14 +11,16 @@ if [ ! -x "${PYTHON_BIN}" ]; then
   PYTHON_BIN="$(command -v python3)"
 fi
 
-"${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
-
 mode="${1:-}"
 case "${mode}" in
   baseline)
+    rm -f "${ROOT_DIR}/reports/prompt-injection-baseline.json"
+    "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
     "${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_llm_guardrail_demo.py" baseline-injection
     ;;
   guarded)
+    rm -f "${ROOT_DIR}/reports/prompt-injection-guarded.json"
+    "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
     "${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_llm_guardrail_demo.py" guarded-injection
     ;;
   *)

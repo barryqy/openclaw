@@ -11,14 +11,16 @@ if [ ! -x "${PYTHON_BIN}" ]; then
   PYTHON_BIN="$(command -v python3)"
 fi
 
-"${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
-
 mode="${1:-}"
 case "${mode}" in
   baseline)
+    rm -f "${ROOT_DIR}/reports/privacy-baseline.json"
+    "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
     "${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_llm_guardrail_demo.py" baseline-privacy
     ;;
   guarded)
+    rm -f "${ROOT_DIR}/reports/privacy-guarded.json"
+    "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
     "${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_llm_guardrail_demo.py" guarded-privacy
     ;;
   *)
