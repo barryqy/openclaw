@@ -21,7 +21,7 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/run_mcp_abuse_demo.sh` shows the malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_prompt_injection_demo.sh` and `scripts/run_privacy_demo.sh` drive direct LLM tests before and after DefenseClaw.
 - `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
-- `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace.
+- `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace and points OpenClaw at the built-in lab LLM over its OpenAI-compatible endpoint.
 - `scripts/manage_openclaw_gateway.sh` keeps the OpenClaw gateway alive in the background for this lab session without relying on systemd.
 
 ## Quick Start
@@ -55,4 +55,5 @@ cd /home/developer/src/openclaw
 - Everything malicious in this repo is fake, local, and for education only.
 - The exfiltration demo only posts to `127.0.0.1`.
 - The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
+- `openai/<model>` in the lab config is only an OpenAI-compatible protocol label. The actual upstream stays the built-in Learning Lab LLM from `LLM_BASE_URL`, not a separate public OpenAI account.
 - The guide avoids `source .venv/bin/activate` on purpose so the shell stays predictable between OpenClaw and DefenseClaw steps.
