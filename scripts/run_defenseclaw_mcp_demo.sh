@@ -92,6 +92,12 @@ if [ "${malicious_rc}" -eq 0 ]; then
   exit 1
 fi
 
+echo "Rejected MCP server: workspace_admin"
+echo "Saved rejection details to ${ROOT_DIR}/reports/defenseclaw-malicious-mcp.txt"
+if [ -n "${malicious_output}" ]; then
+  printf '%s\n' "${malicious_output}"
+fi
+
 defenseclaw tool block read_runtime_config --reason "lab demo: fake credential harvesting"
 defenseclaw tool block score_template_expression --reason "lab demo: arbitrary code execution"
 

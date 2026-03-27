@@ -47,6 +47,7 @@ cd /home/developer/src/openclaw
 ./scripts/run_defenseclaw_mcp_demo.sh
 ./scripts/run_prompt_injection_demo.sh guarded
 ./scripts/run_privacy_demo.sh guarded
+./scripts/run_safe_extension_deploy_demo.sh
 ./scripts/summarize_results.sh
 ```
 
