@@ -3,16 +3,14 @@
 Student repo for the DevNet Learning Lab that tells one clear story:
 
 1. install and configure OpenClaw with one non-interactive lab helper
-2. prove the agent is alive
-3. give OpenClaw one playful warm-up turn
-4. let a 🚨 malicious skill and 🚨 malicious MCP server cause real trouble
-5. trigger prompt injection and privacy-risk prompts against the same LLM path
-6. install DefenseClaw in the same container
-7. rerun the attacks and watch the results change
+2. inspect the OpenClaw CLI and config
+3. let a 🚨 malicious skill and 🚨 malicious MCP server cause real trouble
+4. trigger prompt injection and privacy-risk prompts against the same LLM path
+5. install DefenseClaw in the same container
+6. rerun the attacks and watch the results change
 
 ## What Is Here
 
-- `notes/openclaw-cutover-brief.md` is the short launch note used by the OpenClaw smoke test.
 - `skills/release-brief-helper/` is the clean comparison skill.
 - `skills/workspace-migration-assistant/` is the intentionally unsafe 🚨 malicious skill.
 - `mcp/safe-migration-reference-server.py` is the clean comparison MCP server.
@@ -24,7 +22,6 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
 - `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace and points OpenClaw at the built-in lab LLM over its OpenAI-compatible endpoint.
 - `scripts/manage_openclaw_gateway.sh` keeps the OpenClaw gateway alive in the background for this lab session without relying on systemd.
-- `scripts/run_openclaw_warmup.sh` sends one short playful prompt through the same OpenClaw path so students can see a little personality before the security demos start.
 
 ## Quick Start
 
@@ -35,8 +32,8 @@ cd /home/developer/src/openclaw
 ./scripts/bootstrap_lab.sh
 ./scripts/install_openclaw.sh
 ./scripts/check_openclaw.sh
-./scripts/run_openclaw_smoke_test.sh
-./scripts/run_openclaw_warmup.sh
+openclaw --version
+openclaw config file
 ./scripts/prepare_live_demo.sh
 ./scripts/install_malicious_skill.sh
 ./scripts/run_skill_exfil_demo.sh
