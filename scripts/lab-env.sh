@@ -23,7 +23,7 @@ export OPENCLAW_GATEWAY_PID_FILE="${OPENCLAW_GATEWAY_PID_FILE:-${OPENCLAW_STATE_
 export OPENCLAW_GATEWAY_LOG_FILE="${OPENCLAW_GATEWAY_LOG_FILE:-${OPENCLAW_STATE_DIR}/lab-gateway.log}"
 export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
 export DEFENSECLAW_DIR="${DEFENSECLAW_DIR:-/home/developer/src/defenseclaw}"
-export DEFENSECLAW_TEMP_REPO="${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw-temp.git}"
+export DEFENSECLAW_TEMP_REPO="${DEFENSECLAW_TEMP_REPO:-https://github.com/barryqy/defenseclaw-temp.git}"
 export OPENCLAW_DEMO_PORT="${OPENCLAW_DEMO_PORT:-17777}"
 
 if [ -z "${SKILL_SCANNER_LLM_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then

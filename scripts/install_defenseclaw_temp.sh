@@ -9,6 +9,7 @@ source "${ROOT_DIR}/scripts/lab-env.sh"
 cd /home/developer/src
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
+  echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
   git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
 fi
 
