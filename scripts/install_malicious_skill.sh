@@ -6,17 +6,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
 
-if [ ! -f "${ZEROCLAW_CONFIG_DIR}/config.toml" ]; then
-  echo "ZeroClaw lab profile not found. Run ./scripts/setup_zeroclaw_profile.sh first." >&2
-  exit 1
-fi
+mkdir -p "${OPENCLAW_SKILLS_DIR}"
+rm -rf "${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant"
+cp -R "${ROOT_DIR}/skills/workspace-migration-assistant" "${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant"
 
-if [ -d "${ZEROCLAW_WORKSPACE}/skills/workspace-migration-assistant" ]; then
-  "${ZEROCLAW_BIN}" skills remove workspace-migration-assistant >/dev/null
-fi
-
-"${ZEROCLAW_BIN}" skills install "${ROOT_DIR}/skills/workspace-migration-assistant"
+echo "Installed workspace-migration-assistant into ${OPENCLAW_SKILLS_DIR}"
 echo
-"${ZEROCLAW_BIN}" skills list
-echo
-find "${ZEROCLAW_WORKSPACE}/skills" -maxdepth 2 -type f | sort
+find "${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant" -maxdepth 2 -type f | sort

@@ -3,29 +3,17 @@
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 export OPENCLAW_ROOT="${ROOT_DIR}"
-export ZEROCLAW_DIR="${ZEROCLAW_DIR:-/home/developer/src/zeroclaw}"
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
 
-if [ -z "${ZEROCLAW_BIN:-}" ]; then
-  if command -v zeroclaw >/dev/null 2>&1; then
-    export ZEROCLAW_BIN="$(command -v zeroclaw)"
-  elif [ -x "${HOME}/.cargo/bin/zeroclaw" ]; then
-    export ZEROCLAW_BIN="${HOME}/.cargo/bin/zeroclaw"
-  else
-    export ZEROCLAW_BIN="${ZEROCLAW_DIR}/target/release/zeroclaw"
-  fi
-fi
-
-export ZEROCLAW_CONFIG_DIR="${ZEROCLAW_CONFIG_DIR:-${ROOT_DIR}/.zeroclaw}"
-export ZEROCLAW_WORKSPACE="${ZEROCLAW_WORKSPACE:-${ZEROCLAW_CONFIG_DIR}/workspace}"
+export OPENCLAW_HOME="${OPENCLAW_HOME:-${HOME}/.openclaw}"
+export OPENCLAW_CONFIG_FILE="${OPENCLAW_CONFIG_FILE:-${OPENCLAW_HOME}/openclaw.json}"
+export OPENCLAW_WORKSPACE="${OPENCLAW_WORKSPACE:-${ROOT_DIR}/workspace}"
+export OPENCLAW_SKILLS_DIR="${OPENCLAW_SKILLS_DIR:-${OPENCLAW_WORKSPACE}/skills}"
+export OPENCLAW_REPORTS_DIR="${OPENCLAW_REPORTS_DIR:-${ROOT_DIR}/reports}"
 export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
-
-if [ -z "${ZEROCLAW_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
-  export ZEROCLAW_API_KEY="${LLM_API_KEY}"
-fi
-
-if [ -z "${API_KEY:-}" ] && [ -n "${ZEROCLAW_API_KEY:-}" ]; then
-  export API_KEY="${ZEROCLAW_API_KEY}"
-fi
+export DEFENSECLAW_DIR="${DEFENSECLAW_DIR:-/home/developer/src/defenseclaw}"
+export DEFENSECLAW_TEMP_REPO="${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw-temp.git}"
+export OPENCLAW_DEMO_PORT="${OPENCLAW_DEMO_PORT:-17777}"
 
 if [ -z "${SKILL_SCANNER_LLM_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
   export SKILL_SCANNER_LLM_API_KEY="${LLM_API_KEY}"
@@ -60,7 +48,8 @@ openclaw_require_llm() {
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   echo "OPENCLAW_ROOT=${OPENCLAW_ROOT}"
-  echo "ZEROCLAW_BIN=${ZEROCLAW_BIN}"
-  echo "ZEROCLAW_CONFIG_DIR=${ZEROCLAW_CONFIG_DIR}"
+  echo "OPENCLAW_HOME=${OPENCLAW_HOME}"
+  echo "OPENCLAW_CONFIG_FILE=${OPENCLAW_CONFIG_FILE}"
+  echo "OPENCLAW_WORKSPACE=${OPENCLAW_WORKSPACE}"
   echo "OPENCLAW_LLM_MODEL=${OPENCLAW_LLM_MODEL}"
 fi

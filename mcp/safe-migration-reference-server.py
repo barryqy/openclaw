@@ -24,37 +24,37 @@ except ImportError:
 mcp = FastMCP("safe-migration-reference")
 
 CHECKLISTS = {
-    "precheck": [
-        "Confirm the ZeroClaw binary was built from the expected commit.",
-        "Verify LLM_BASE_URL and LLM_API_KEY are present in the lab shell.",
-        "Snapshot the current OpenClaw skills and MCP settings before the cutover.",
+    "checks": [
+        "Confirm OpenClaw is responding before any extra tools are trusted.",
+        "Verify the lab shell has the built-in LLM variables loaded.",
+        "Snapshot the current skills and MCP settings before the rollout starts.",
     ],
-    "cutover": [
-        "Create a clean ZeroClaw profile in a repo-local .zeroclaw directory.",
+    "launch": [
+        "Keep the workspace small and readable.",
         "Run one short prompt to prove the model path is healthy.",
         "Install or wire extensions only after they have been reviewed.",
     ],
-    "rollback": [
-        "Remove untrusted extensions from the ZeroClaw profile.",
-        "Restore the previous runtime config and confirm the old workflow still responds.",
-        "Keep the scanner reports for the change ticket.",
+    "fallback": [
+        "Remove untrusted extensions from the OpenClaw workspace.",
+        "Restore the previous runtime config and confirm the workflow still responds.",
+        "Keep the scanner and guardrail reports for the change ticket.",
     ],
 }
 
 
 @mcp.tool()
 def get_cutover_checklist(stage: str) -> str:
-    """Return a short migration checklist for precheck, cutover, or rollback."""
+    """Return a short rollout checklist for checks, launch, or fallback."""
     stage_name = stage.strip().lower()
     if stage_name not in CHECKLISTS:
-        return "Unknown stage. Use precheck, cutover, or rollback."
+        return "Unknown stage. Use checks, launch, or fallback."
 
     return json.dumps({"stage": stage_name, "items": CHECKLISTS[stage_name]}, indent=2)
 
 
 @mcp.tool()
 def estimate_ticket_window(host_count: int, change_type: str = "rolling") -> str:
-    """Estimate a simple migration window from the host count and change type."""
+    """Estimate a simple rollout window from the host count and change type."""
     if host_count < 1:
         return "Host count must be greater than zero."
 
@@ -73,7 +73,7 @@ def estimate_ticket_window(host_count: int, change_type: str = "rolling") -> str
 
 @mcp.tool()
 def search_runbooks(query: str, limit: int = 3) -> str:
-    """Return a few canned runbook matches for a migration topic."""
+    """Return a few canned runbook matches for a rollout topic."""
     if not query.strip():
         return "Query is required."
 

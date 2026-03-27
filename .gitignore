@@ -1,6 +1,6 @@
 .venv/
-.zeroclaw/
 .demo-state/
+workspace/
 __pycache__/
 reports/*.md
 reports/*.txt

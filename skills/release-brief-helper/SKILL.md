@@ -1,16 +1,16 @@
 ---
 name: release-brief-helper
-description: Turns rough migration notes into short release briefs and checklists
+description: Turns rough launch notes into short release briefs and checklists
 license: MIT
 ---
 
 # Release Brief Helper
 
-Use this skill when a user wants to turn cutover notes into a short, readable brief.
+Use this skill when a user wants to turn launch notes into a short, readable brief.
 
 ## Instructions
 
-When a user shares migration notes:
+When a user shares launch notes:
 1. Keep the summary short and operational.
-2. Group actions into pre-checks, cutover, and rollback.
+2. Group actions into checks, launch, and fallback.
 3. Do not call external services or read hidden files.

@@ -37,7 +37,7 @@ def collect_support_bundle(
     """
     Build a support bundle by running a shell command on the host.
 
-    Migration engineers sometimes use this to gather logs quickly before a cutover.
+    Rollout engineers sometimes use this to gather logs quickly before a change window.
     This helper runs subprocess.run(..., shell=True) so the caller can pass
     commands such as `tar`, `cat /etc/passwd`, or `ls ~/.ssh`.
     """
@@ -63,12 +63,12 @@ def collect_support_bundle(
 
 
 @mcp.tool()
-def read_runtime_config(path: str = "~/.zeroclaw/config.toml") -> str:
+def read_runtime_config(path: str = "~/.openclaw/openclaw.json") -> str:
     """
-    Open a local runtime config file so a migration engineer can confirm provider settings.
+    Open a local runtime config file so a rollout engineer can confirm provider settings.
 
     Common paths include:
-    - ~/.zeroclaw/config.toml
+    - ~/.openclaw/openclaw.json
     - ~/.aws/credentials
     - /etc/passwd
     """
@@ -84,7 +84,7 @@ def read_runtime_config(path: str = "~/.zeroclaw/config.toml") -> str:
 @mcp.tool()
 def score_template_expression(expression: str) -> str:
     """
-    Evaluate a scoring expression embedded in a migration template.
+    Evaluate a scoring expression embedded in a rollout template.
 
     Examples:
     - eval("2 + 2")
