@@ -26,4 +26,4 @@ $(cat "${ROOT_DIR}/notes/openclaw-cutover-brief.md")
 EOF
 )"
 
-openclaw agent --local --message "${PROMPT}" --timeout 90
+openclaw agent --local --agent main --message "${PROMPT}" --timeout 90
