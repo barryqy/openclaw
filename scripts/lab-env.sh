@@ -2,6 +2,24 @@
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+derive_lab_llm_api_base() {
+  local raw_url="${1:-}"
+
+  raw_url="${raw_url%/}"
+
+  case "${raw_url}" in
+    */chat/completions)
+      printf '%s\n' "${raw_url%/chat/completions}"
+      ;;
+    */completions)
+      printf '%s\n' "${raw_url%/completions}"
+      ;;
+    *)
+      printf '%s\n' "${raw_url}"
+      ;;
+  esac
+}
+
 export OPENCLAW_ROOT="${ROOT_DIR}"
 export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
 
@@ -25,6 +43,20 @@ export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
 export DEFENSECLAW_DIR="${DEFENSECLAW_DIR:-/home/developer/src/defenseclaw}"
 export DEFENSECLAW_TEMP_REPO="${DEFENSECLAW_TEMP_REPO:-https://github.com/barryqy/defenseclaw-temp.git}"
 export OPENCLAW_DEMO_PORT="${OPENCLAW_DEMO_PORT:-17777}"
+
+tmpLabApiBase="${OPENCLAW_LLM_API_BASE:-}"
+if [ -z "${tmpLabApiBase}" ] && [ -n "${LLM_BASE_URL:-}" ]; then
+  tmpLabApiBase="$(derive_lab_llm_api_base "${LLM_BASE_URL}")"
+fi
+export OPENCLAW_LLM_API_BASE="${tmpLabApiBase}"
+
+if [ -z "${OPENAI_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
+  export OPENAI_API_KEY="${LLM_API_KEY}"
+fi
+
+if [ -z "${OPENAI_API_BASE:-}" ] && [ -n "${OPENCLAW_LLM_API_BASE:-}" ]; then
+  export OPENAI_API_BASE="${OPENCLAW_LLM_API_BASE}"
+fi
 
 if [ -z "${SKILL_SCANNER_LLM_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
   export SKILL_SCANNER_LLM_API_KEY="${LLM_API_KEY}"

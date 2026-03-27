@@ -55,3 +55,4 @@ cd /home/developer/src/openclaw
 - Everything malicious in this repo is fake, local, and for education only.
 - The exfiltration demo only posts to `127.0.0.1`.
 - The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
+- The guide avoids `source .venv/bin/activate` on purpose so the shell stays predictable between OpenClaw and DefenseClaw steps.
