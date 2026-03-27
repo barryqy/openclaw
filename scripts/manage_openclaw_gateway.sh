@@ -56,6 +56,7 @@ wait_for_gateway() {
 
 start_gateway() {
   local pid
+  local gateway_args
 
   mkdir -p "${OPENCLAW_STATE_DIR}"
 
@@ -69,6 +70,11 @@ start_gateway() {
 
   rm -f "${OPENCLAW_GATEWAY_PID_FILE}"
 
+  gateway_args=(gateway run)
+  if command -v lsof >/dev/null 2>&1 || command -v fuser >/dev/null 2>&1; then
+    gateway_args+=(--force)
+  fi
+
   echo "Starting OpenClaw gateway in the lab session..."
   nohup env \
     PATH="${PATH}" \
@@ -81,7 +87,7 @@ start_gateway() {
     LLM_BASE_URL="${LLM_BASE_URL:-}" \
     LLM_API_KEY="${LLM_API_KEY:-}" \
     LLM_MODEL="${LLM_MODEL:-}" \
-    openclaw gateway run --force >"${OPENCLAW_GATEWAY_LOG_FILE}" 2>&1 &
+    openclaw "${gateway_args[@]}" >"${OPENCLAW_GATEWAY_LOG_FILE}" 2>&1 &
   pid=$!
 
   echo "${pid}" > "${OPENCLAW_GATEWAY_PID_FILE}"
