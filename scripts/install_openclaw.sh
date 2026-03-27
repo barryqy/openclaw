@@ -9,8 +9,14 @@ source "${ROOT_DIR}/scripts/lab-env.sh"
 openclaw_require_llm
 
 if ! command -v openclaw >/dev/null 2>&1; then
-  curl -fsSL https://openclaw.ai/install.sh | bash
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "npm is required to install OpenClaw in this lab." >&2
+    exit 1
+  fi
+
+  npm install -g --prefix "${HOME}/.local" openclaw@latest
   export PATH="${HOME}/.local/bin:${PATH}"
+  hash -r
 fi
 
 mkdir -p "${OPENCLAW_WORKSPACE}"
@@ -25,6 +31,7 @@ if [ -f "${OPENCLAW_CONFIG_FILE}" ]; then
 fi
 
 openclaw onboard \
+  --accept-risk \
   --non-interactive \
   --workspace "${OPENCLAW_WORKSPACE}" \
   --mode local \
