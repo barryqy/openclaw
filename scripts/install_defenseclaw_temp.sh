@@ -30,29 +30,50 @@ PY
 
 python_version_ok() {
   local python_bin="$1"
+  local min_major="${2:-3}"
+  local min_minor="${3:-10}"
 
-  "${python_bin}" - <<'PY' >/dev/null 2>&1
+  "${python_bin}" "${min_major}" "${min_minor}" - <<'PY' >/dev/null 2>&1
 import sys
 
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+min_major = int(sys.argv[1])
+min_minor = int(sys.argv[2])
+
+raise SystemExit(0 if sys.version_info >= (min_major, min_minor) else 1)
 PY
 }
 
-pick_python_bin() {
+resolve_defenseclaw_python() {
   local candidate
+  local uv_python
 
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+  for candidate in python3.13 python3.12 python3.11 python3; do
     if ! command -v "${candidate}" >/dev/null 2>&1; then
       continue
     fi
 
-    if python_version_ok "${candidate}"; then
+    if python_version_ok "${candidate}" 3 11; then
       command -v "${candidate}"
       return 0
     fi
   done
 
-  echo "DefenseClaw needs Python 3.10 or newer in this lab pod." >&2
+  uv_python="$(uv python find 3.12 2>/dev/null || true)"
+  if [ -n "${uv_python}" ] && [ -x "${uv_python}" ]; then
+    echo "${uv_python}"
+    return 0
+  fi
+
+  echo "Installing Python 3.12 for DefenseClaw..." >&2
+  uv python install 3.12
+  uv_python="$(uv python find 3.12 2>/dev/null || true)"
+
+  if [ -n "${uv_python}" ] && [ -x "${uv_python}" ]; then
+    echo "${uv_python}"
+    return 0
+  fi
+
+  echo "DefenseClaw needs Python 3.11 or newer so the MCP scanner can install." >&2
   return 1
 }
 
@@ -196,7 +217,12 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-UV_PYTHON_BIN="$(pick_python_bin)"
+UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
+
+if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; then
+  rm -rf .venv
+fi
+
 uv venv .venv --python "${UV_PYTHON_BIN}"
 uv pip install -e . --python .venv/bin/python
 make gateway-install plugin-install
