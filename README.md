@@ -20,7 +20,7 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/run_skill_exfil_demo.sh` shows the malicious skill stealing fake secrets into a localhost collector.
 - `scripts/run_mcp_abuse_demo.sh` shows the malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_prompt_injection_demo.sh` and `scripts/run_privacy_demo.sh` drive direct LLM tests before and after DefenseClaw.
-- `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment.
+- `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go and `uv`.
 - `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace.
 - `scripts/manage_openclaw_gateway.sh` keeps the OpenClaw gateway alive in the background for this lab session without relying on systemd.
 
