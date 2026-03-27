@@ -226,6 +226,14 @@ fi
 uv venv .venv --python "${UV_PYTHON_BIN}"
 uv pip install -e . --python .venv/bin/python
 make gateway-install plugin-install
+hash -r
+
+if ! command -v defenseclaw-gateway >/dev/null 2>&1; then
+  echo
+  echo "DefenseClaw gateway is still not on PATH after the first install pass." >&2
+  echo "Recovery: run 'make gateway-install' from ${DEFENSECLAW_DIR} and then rerun this helper." >&2
+  exit 1
+fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
