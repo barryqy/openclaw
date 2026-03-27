@@ -2,7 +2,7 @@
 
 Student repo for the DevNet Learning Lab that tells one clear story:
 
-1. build OpenClaw with the official installer
+1. start from the image's preloaded OpenClaw setup
 2. prove the agent is alive
 3. let a malicious skill and MCP server cause real trouble
 4. trigger prompt injection and privacy-risk prompts against the same LLM path
@@ -21,15 +21,16 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/run_mcp_abuse_demo.sh` shows the malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_prompt_injection_demo.sh` and `scripts/run_privacy_demo.sh` drive direct LLM tests before and after DefenseClaw.
 - `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment.
+- `scripts/install_openclaw.sh` is kept as the image-prep and recovery helper, not the student-facing path.
 
 ## Quick Start
 
-The DevNet lab guide clones this repo into `/home/developer/src/openclaw` and then uses short helper scripts like these:
+The DevNet lab guide clones this repo into `/home/developer/src/openclaw`, verifies the image's preloaded OpenClaw setup, and then uses short helper scripts like these:
 
 ```bash
 cd /home/developer/src/openclaw
 ./scripts/bootstrap_lab.sh
-./scripts/install_openclaw.sh
+./scripts/check_openclaw.sh
 ./scripts/run_openclaw_smoke_test.sh
 ./scripts/prepare_live_demo.sh
 ./scripts/install_malicious_skill.sh
@@ -51,4 +52,4 @@ cd /home/developer/src/openclaw
 
 - Everything malicious in this repo is fake, local, and for education only.
 - The exfiltration demo only posts to `127.0.0.1`.
-- The lab assumes the DevNet image already provides the built-in `LLM_*` variables used by OpenClaw and the direct prompt demos.
+- The lab assumes the DevNet image already provides the built-in `LLM_*` variables and a preconfigured OpenClaw install.

@@ -7,8 +7,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT_DIR}/scripts/lab-env.sh"
 
 if ! command -v openclaw >/dev/null 2>&1; then
-  echo "OpenClaw is not installed yet." >&2
-  echo "Run ./scripts/install_openclaw.sh first." >&2
+  echo "OpenClaw is not available in this pod." >&2
+  echo "Reset the pod or switch to the image with the preloaded OpenClaw setup." >&2
   exit 1
 fi
 

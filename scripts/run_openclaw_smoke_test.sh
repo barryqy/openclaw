@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if ! command -v openclaw >/dev/null 2>&1; then
-  echo "OpenClaw is not installed yet." >&2
+  echo "OpenClaw is not available in this pod." >&2
   exit 1
 fi
 

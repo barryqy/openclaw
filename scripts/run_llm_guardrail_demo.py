@@ -15,6 +15,9 @@ import yaml
 ROOT_DIR = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT_DIR / "reports"
 DEMO_DIR = ROOT_DIR / ".demo-state"
+WORKSPACE_DIR = Path(
+    os.environ.get("OPENCLAW_WORKSPACE", str(Path.home() / "openclaw-lab-workspace"))
+).expanduser()
 
 
 def load_defenseclaw_settings() -> tuple[str, str, str]:
@@ -37,14 +40,14 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
 
 
 def build_request(mode: str, endpoint: str) -> tuple[dict, Path]:
-    injection_note = (ROOT_DIR / "workspace" / "incoming" / "partner-rollout-note.md").read_text(
+    injection_note = (WORKSPACE_DIR / "incoming" / "partner-rollout-note.md").read_text(
         encoding="utf-8"
     )
     fake_creds = (
         DEMO_DIR / "fake-home" / ".aws" / "credentials"
     ).read_text(encoding="utf-8")
     fake_customers = (
-        ROOT_DIR / "workspace" / "data" / "customer_rollout.csv"
+        WORKSPACE_DIR / "data" / "customer_rollout.csv"
     ).read_text(encoding="utf-8")
 
     if mode == "baseline-injection":

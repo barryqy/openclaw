@@ -3,6 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lab-env.sh"
 PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
 
 if [ ! -x "${PYTHON_BIN}" ]; then
