@@ -231,6 +231,16 @@ ensure_lab_scanners() {
   echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
 }
 
+stop_running_defenseclaw_gateway() {
+  if ! command -v defenseclaw-gateway >/dev/null 2>&1; then
+    return 0
+  fi
+
+  defenseclaw-gateway stop >/dev/null 2>&1 || true
+  pkill -f '/defenseclaw-gateway' >/dev/null 2>&1 || true
+  sleep 1
+}
+
 defenseclaw_venv_is_broken() {
   if [ ! -d ".venv" ]; then
     return 1
@@ -459,7 +469,12 @@ uv pip install -e . --python .venv/bin/python
 export npm_config_audit=false
 export npm_config_fund=false
 export npm_config_update_notifier=false
-make gateway-install plugin-install
+stop_running_defenseclaw_gateway
+if ! make gateway-install plugin-install; then
+  echo "Retrying DefenseClaw install after stopping any leftover gateway process..."
+  stop_running_defenseclaw_gateway
+  make gateway-install plugin-install
+fi
 hash -r
 
 if ! command -v defenseclaw-gateway >/dev/null 2>&1; then
