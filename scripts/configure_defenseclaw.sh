@@ -27,6 +27,65 @@ export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
 export OPENAI_API_BASE="${OPENAI_API_BASE:-${OPENCLAW_LLM_API_BASE}}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
 
+read_guardrail_port() {
+  python - <<'PY'
+from pathlib import Path
+
+import yaml
+
+
+cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
+if not cfg_path.exists():
+    print(4000)
+    raise SystemExit(0)
+
+cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+guardrail = cfg.get("guardrail", {}) or {}
+print(int(guardrail.get("port", 4000) or 4000))
+PY
+}
+
+guardrail_healthy() {
+  local port="$1"
+
+  python - "${port}" <<'PY'
+import sys
+import urllib.request
+
+port = sys.argv[1]
+url = f"http://127.0.0.1:{port}/health/liveliness"
+try:
+    with urllib.request.urlopen(url, timeout=2) as resp:
+        raise SystemExit(0 if resp.status == 200 else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+wait_for_guardrail() {
+  local port="$1"
+  local attempts="${2:-45}"
+  local idx=0
+
+  while [ "${idx}" -lt "${attempts}" ]; do
+    if guardrail_healthy "${port}"; then
+      return 0
+    fi
+    idx=$((idx + 1))
+    sleep 1
+  done
+
+  return 1
+}
+
+show_guardrail_debug() {
+  echo
+  echo "DefenseClaw guardrail proxy did not become healthy." >&2
+  echo "The sidecar API may be running while the protected LLM path is still down." >&2
+  echo >&2
+  defenseclaw sidecar status || true
+}
+
 python - <<'PY'
 from defenseclaw.config import load
 from defenseclaw.guardrail import detect_current_model
@@ -156,6 +215,21 @@ if command -v defenseclaw-gateway >/dev/null 2>&1; then
   fi
 fi
 
+guardrail_port="$(read_guardrail_port)"
+guardrail_url="http://127.0.0.1:${guardrail_port}/health/liveliness"
+
+echo "Waiting for DefenseClaw guardrail proxy at ${guardrail_url}..."
+if wait_for_guardrail "${guardrail_port}" 45; then
+  echo "DefenseClaw guardrail proxy is live at ${guardrail_url}"
+else
+  show_guardrail_debug
+  echo >&2
+  echo "Recovery: run /home/developer/src/defenseclaw/.venv/bin/defenseclaw setup guardrail --restart" >&2
+  exit 1
+fi
+
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
 defenseclaw status
+echo
+defenseclaw sidecar status || true
