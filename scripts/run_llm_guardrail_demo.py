@@ -232,15 +232,28 @@ def main() -> None:
     payload["model"] = model
     payload.pop("endpoint", None)
 
-    response = requests.post(
-        endpoint,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json=payload,
-        timeout=45,
-    )
+    try:
+        response = requests.post(
+            endpoint,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=45,
+        )
+    except requests.RequestException as exc:
+        if args.mode.startswith("guarded-"):
+            raise SystemExit(
+                "DefenseClaw guardrail proxy is not reachable at "
+                f"{endpoint}. Run ./scripts/configure_defenseclaw.sh "
+                "or /home/developer/src/defenseclaw/.venv/bin/defenseclaw "
+                "setup guardrail --restart, then retry. "
+                f"error={exc}"
+            ) from exc
+        raise SystemExit(
+            f"Could not reach the lab LLM endpoint at {endpoint}. error={exc}"
+        ) from exc
 
     data = response.json()
     assistant = ""
