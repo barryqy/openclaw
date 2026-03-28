@@ -231,6 +231,59 @@ ensure_lab_scanners() {
   echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
 }
 
+defenseclaw_repo_looks_legacy() {
+  [ ! -f "${DEFENSECLAW_DIR}/internal/gateway/proxy.go" ]
+}
+
+ensure_defenseclaw_repo() {
+  local repo_parent
+  local current_remote=""
+  local backup_dir=""
+  local current_branch=""
+
+  repo_parent="$(dirname "${DEFENSECLAW_DIR}")"
+  mkdir -p "${repo_parent}"
+
+  if [ ! -d "${DEFENSECLAW_DIR}" ]; then
+    echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
+    git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
+    return 0
+  fi
+
+  if [ ! -d "${DEFENSECLAW_DIR}/.git" ]; then
+    echo "Existing ${DEFENSECLAW_DIR} is not a git checkout." >&2
+    echo "Move it aside and rerun the install helper." >&2
+    return 1
+  fi
+
+  current_remote="$(git -C "${DEFENSECLAW_DIR}" remote get-url origin 2>/dev/null || true)"
+  if [ "${current_remote}" != "${DEFENSECLAW_TEMP_REPO}" ]; then
+    git -C "${DEFENSECLAW_DIR}" remote set-url origin "${DEFENSECLAW_TEMP_REPO}" || true
+  fi
+
+  if defenseclaw_repo_looks_legacy; then
+    backup_dir="${DEFENSECLAW_DIR}.legacy-backup-$(date +%Y%m%d-%H%M%S)"
+    echo "Detected an older DefenseClaw checkout without the built-in guardrail proxy."
+    echo "Moving it to ${backup_dir}"
+    mv "${DEFENSECLAW_DIR}" "${backup_dir}"
+    echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
+    git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
+    return 0
+  fi
+
+  if ! git -C "${DEFENSECLAW_DIR}" diff --quiet || ! git -C "${DEFENSECLAW_DIR}" diff --cached --quiet; then
+    echo "DefenseClaw repo has local changes; skipping automatic git pull."
+    return 0
+  fi
+
+  git -C "${DEFENSECLAW_DIR}" fetch origin
+  current_branch="$(git -C "${DEFENSECLAW_DIR}" branch --show-current 2>/dev/null || true)"
+  if [ -n "${current_branch}" ] && [ "${current_branch}" != "main" ]; then
+    git -C "${DEFENSECLAW_DIR}" checkout main
+  fi
+  git -C "${DEFENSECLAW_DIR}" pull --ff-only origin main
+}
+
 patch_defenseclaw_guardrail_api_base() {
   python3 - "${DEFENSECLAW_DIR}" <<'PY'
 from pathlib import Path
@@ -360,14 +413,7 @@ PY
   fi
 }
 
-defenseclaw_parent_dir="$(dirname "${DEFENSECLAW_DIR}")"
-mkdir -p "${defenseclaw_parent_dir}"
-cd "${defenseclaw_parent_dir}"
-
-if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-  echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
-  git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
-fi
+ensure_defenseclaw_repo
 
 cd "${DEFENSECLAW_DIR}"
 
