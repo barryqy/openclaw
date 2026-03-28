@@ -197,6 +197,40 @@ ensure_uv_runtime() {
   echo "uv ready: $(uv --version)"
 }
 
+python_module_available() {
+  local python_bin="$1"
+  local module_name="$2"
+
+  "${python_bin}" - "${module_name}" <<'PY' >/dev/null 2>&1
+import importlib.util
+import sys
+
+raise SystemExit(0 if importlib.util.find_spec(sys.argv[1]) else 1)
+PY
+}
+
+ensure_lab_scanners() {
+  local missing=()
+
+  if ! python_module_available ".venv/bin/python" "skill_scanner"; then
+    missing+=("cisco-ai-skill-scanner")
+  fi
+
+  if ! python_module_available ".venv/bin/python" "mcpscanner"; then
+    missing+=("cisco-ai-mcp-scanner")
+  fi
+
+  if [ "${#missing[@]}" -eq 0 ]; then
+    echo "DefenseClaw scanner dependencies already available in the lab venv."
+    echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
+    return 0
+  fi
+
+  echo "Installing missing DefenseClaw scanner dependencies: ${missing[*]}"
+  uv pip install --python .venv/bin/python "${missing[@]}"
+  echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
+}
+
 defenseclaw_parent_dir="$(dirname "${DEFENSECLAW_DIR}")"
 mkdir -p "${defenseclaw_parent_dir}"
 cd "${defenseclaw_parent_dir}"
@@ -225,6 +259,9 @@ fi
 
 uv venv .venv --python "${UV_PYTHON_BIN}"
 uv pip install -e . --python .venv/bin/python
+export npm_config_audit=false
+export npm_config_fund=false
+export npm_config_update_notifier=false
 make gateway-install plugin-install
 hash -r
 
@@ -237,7 +274,7 @@ fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
-./scripts/setup-scanners.sh
+ensure_lab_scanners
 defenseclaw init --skip-install
 defenseclaw policy activate strict
 defenseclaw status
