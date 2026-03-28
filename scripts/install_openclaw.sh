@@ -161,6 +161,55 @@ ensure_node_runtime
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
 
+patch_openclaw_lab_runtime() {
+  local node_root
+  local provider_file
+
+  node_root="$(npm root -g --prefix "${HOME}/.local" 2>/dev/null || true)"
+  if [ -z "${node_root}" ]; then
+    echo "Unable to resolve the OpenClaw npm install root for the lab runtime patch." >&2
+    return 1
+  fi
+
+  provider_file="${node_root}/openclaw/node_modules/@mariozechner/pi-ai/dist/providers/openai-completions.js"
+  if [ ! -f "${provider_file}" ]; then
+    echo "Unable to find the OpenClaw OpenAI-compatible provider runtime at ${provider_file}." >&2
+    return 1
+  fi
+
+  python3 - "${provider_file}" <<'PY'
+import sys
+from pathlib import Path
+
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+marker = "function shouldForceNonStreamingOpenAICompletions(model) {"
+if marker in text:
+    print(f"OpenClaw lab runtime patch already present in {path}.")
+    raise SystemExit(0)
+
+helper_insert = """function shouldForceNonStreamingOpenAICompletions(model) {\n    const provider = typeof model?.provider === \"string\" ? model.provider.toLowerCase() : \"\";\n    const baseUrl = typeof model?.baseUrl === \"string\" ? model.baseUrl.toLowerCase() : \"\";\n    return provider === \"llm-image\" || baseUrl.includes(\"devnet-testing.cisco.com\");\n}\nfunction appendNonStreamingTextBlock(output, stream, content) {\n    if (typeof content !== \"string\" || content.length === 0)\n        return;\n    const text = sanitizeSurrogates(content);\n    if (text.length === 0)\n        return;\n    const block = { type: \"text\", text };\n    output.content.push(block);\n    const contentIndex = output.content.length - 1;\n    stream.push({ type: \"text_start\", contentIndex, partial: output });\n    stream.push({ type: \"text_delta\", contentIndex, delta: text, partial: output });\n    stream.push({ type: \"text_end\", contentIndex, content: text, partial: output });\n}\nasync function emitNonStreamingOpenAICompletion(client, model, params, options, output, stream) {\n    const completion = await client.chat.completions.create({\n        ...params,\n        stream: false,\n    }, { signal: options?.signal });\n    stream.push({ type: \"start\", partial: output });\n    output.responseId ||= completion.id;\n    if (completion.usage) {\n        output.usage = parseChunkUsage(completion.usage, model);\n    }\n    const choice = completion.choices?.[0];\n    if (!choice) {\n        throw new Error(\"Provider returned no choices\");\n    }\n    if (choice.finish_reason) {\n        const finishReasonResult = mapStopReason(choice.finish_reason);\n        output.stopReason = finishReasonResult.stopReason;\n        if (finishReasonResult.errorMessage) {\n            output.errorMessage = finishReasonResult.errorMessage;\n        }\n    }\n    const rawContent = Array.isArray(choice.message?.content)\n        ? choice.message.content\n            .map((part) => typeof part?.text === \"string\" ? part.text : \"\")\n            .filter((part) => part.length > 0)\n            .join(\"\")\n        : typeof choice.message?.content === \"string\"\n            ? choice.message.content\n            : \"\";\n    appendNonStreamingTextBlock(output, stream, rawContent);\n    if (options?.signal?.aborted) {\n        throw new Error(\"Request was aborted\");\n    }\n    if (output.stopReason === \"aborted\") {\n        throw new Error(\"Request was aborted\");\n    }\n    if (output.stopReason === \"error\") {\n        throw new Error(output.errorMessage || \"Provider returned an error stop reason\");\n    }\n    stream.push({ type: \"done\", reason: output.stopReason, message: output });\n    stream.end();\n}\n"""
+
+anchor = "}\nexport const streamOpenAICompletions = (model, context, options) => {\n"
+if anchor not in text:
+    raise SystemExit(f"Expected helper anchor not found in {path}")
+text = text.replace(anchor, "}\n" + helper_insert + "export const streamOpenAICompletions = (model, context, options) => {\n", 1)
+
+needle = "            const openaiStream = await client.chat.completions.create(params, { signal: options?.signal });\n            stream.push({ type: \"start\", partial: output });\n"
+replacement = "            if (shouldForceNonStreamingOpenAICompletions(model)) {\n                await emitNonStreamingOpenAICompletion(client, model, params, options, output, stream);\n                return;\n            }\n            const openaiStream = await client.chat.completions.create(params, { signal: options?.signal });\n            stream.push({ type: \"start\", partial: output });\n"
+if needle not in text:
+    raise SystemExit(f"Expected stream branch anchor not found in {path}")
+text = text.replace(needle, replacement, 1)
+
+path.write_text(text, encoding="utf-8")
+print(f"Applied OpenClaw lab runtime patch to {path}.")
+PY
+
+  node --check "${provider_file}" >/dev/null
+}
+
 normalize_lab_openclaw_config() {
   python3 - <<'PY'
 import json
@@ -266,6 +315,8 @@ if ! command -v openclaw >/dev/null 2>&1; then
   export PATH="${HOME}/.local/bin:${PATH}"
   hash -r
 fi
+
+patch_openclaw_lab_runtime
 
 echo "OpenClaw ready: $(openclaw --version)"
 
