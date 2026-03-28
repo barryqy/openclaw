@@ -87,6 +87,8 @@ show_guardrail_debug() {
 }
 
 python - <<'PY'
+import os
+
 from defenseclaw.config import load
 from defenseclaw.guardrail import detect_current_model
 

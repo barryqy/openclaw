@@ -234,6 +234,7 @@ ensure_lab_scanners() {
 patch_defenseclaw_guardrail_api_base() {
   python3 - "${DEFENSECLAW_DIR}" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 
@@ -250,33 +251,93 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def inject_after_line_once(text: str, anchor: str, addition: str, label: str) -> str:
+    if addition.strip() in text:
+        return text
+    if anchor not in text:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    return text.replace(anchor, anchor + addition, 1)
+
+
+def guardrail_block(text: str, label: str) -> str:
+    match = re.search(r"type GuardrailConfig struct \{\n(?P<body>.*?)\n\}", text, re.S)
+    if not match:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    return match.group("body")
+
+
+def replace_guardrail_block(text: str, transform, label: str) -> str:
+    pattern = r"(type GuardrailConfig struct \{\n)(?P<body>.*?)(\n\})"
+    match = re.search(pattern, text, re.S)
+    if not match:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    body = transform(match.group("body"))
+    return text[:match.start()] + match.group(1) + body + match.group(3) + text[match.end():]
+
+
+def replace_guardrail_dataclass(text: str, transform, label: str) -> str:
+    pattern = r"(@dataclass\nclass GuardrailConfig:\n)(?P<body>(?:    .*\n)+)"
+    match = re.search(pattern, text)
+    if not match:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    body = transform(match.group("body"))
+    return text[:match.start()] + match.group(1) + body + text[match.end():]
+
+
+def replace_guardrail_merge(text: str, transform, label: str) -> str:
+    pattern = r"(def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n)(?P<body>.*?)(\n    \))"
+    match = re.search(pattern, text, re.S)
+    if not match:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    body = transform(match.group("body"))
+    return text[:match.start()] + match.group(1) + body + match.group(3) + text[match.end():]
+
+
 text = config_go.read_text(encoding="utf-8")
-if 'mapstructure:"api_base"' not in text:
-    text = replace_once(
+if "APIBase" not in guardrail_block(text, "GuardrailConfig"):
+    text = replace_guardrail_block(
         text,
-        'APIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
-        'APIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n'
-        '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
-        "GuardrailConfig.APIBase",
+        lambda body: inject_after_line_once(
+            body,
+            '\tAPIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
+            '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
+            "GuardrailConfig.APIBase",
+        ),
+        "GuardrailConfig",
     )
-    config_go.write_text(text, encoding="utf-8")
+config_go.write_text(text, encoding="utf-8")
 
 text = config_py.read_text(encoding="utf-8")
-if 'api_base: str = ""' not in text:
-    text = replace_once(
+guardrail_dataclass = re.search(
+    r"@dataclass\nclass GuardrailConfig:\n(?P<body>(?:    .*\n)+)",
+    text,
+)
+if not guardrail_dataclass or 'api_base: str = ""' not in guardrail_dataclass.group("body"):
+    text = replace_guardrail_dataclass(
         text,
-        '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
-        '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n'
-        '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
-        "GuardrailConfig.api_base",
+        lambda body: inject_after_line_once(
+            body,
+            '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
+            '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
+            "GuardrailConfig.api_base",
+        ),
+        "GuardrailConfig dataclass",
     )
-if 'api_base=raw.get("api_base", ""),' not in text:
-    text = replace_once(
+merge_guardrail = re.search(
+    r"def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n(?P<body>.*?)\n    \)",
+    text,
+    re.S,
+)
+if not merge_guardrail or 'api_base=raw.get("api_base", ""),' not in merge_guardrail.group("body"):
+    text = replace_guardrail_merge(
         text,
-        '        api_key_env=raw.get("api_key_env", ""),\n',
-        '        api_key_env=raw.get("api_key_env", ""),\n'
-        '        api_base=raw.get("api_base", ""),\n',
-        "_merge_guardrail api_base",
+        lambda body: inject_after_line_once(
+            body,
+            '        api_key_env=raw.get("api_key_env", ""),\n',
+            '        api_base=raw.get("api_base", ""),\n',
+            "_merge_guardrail api_base",
+        ),
+        "_merge_guardrail",
     )
 config_py.write_text(text, encoding="utf-8")
 
