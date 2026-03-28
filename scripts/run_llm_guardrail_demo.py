@@ -47,6 +47,15 @@ def derive_litellm_master_key(cfg: dict) -> str:
     return "sk-dc-local-dev"
 
 
+def model_alias(raw_model: str) -> str:
+    raw_model = str(raw_model or "").strip()
+    if not raw_model:
+        return ""
+    if "/" in raw_model:
+        return raw_model.split("/", 1)[1].strip()
+    return raw_model
+
+
 def load_defenseclaw_settings() -> tuple[str, str, str]:
     cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
     litellm_path = Path.home() / ".defenseclaw" / "litellm_config.yaml"
@@ -66,10 +75,22 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
     model_name = str(guardrail.get("model_name", "")).strip()
 
     if not model_name:
+        for raw_model in (
+            guardrail.get("model", ""),
+            guardrail.get("original_model", ""),
+        ):
+            model_name = model_alias(raw_model)
+            if model_name:
+                break
+
+    if not model_name:
         model_list = litellm_cfg.get("model_list", [])
         if model_list:
             first_entry = model_list[0] or {}
             model_name = str(first_entry.get("model_name", "")).strip()
+            if not model_name:
+                params = first_entry.get("litellm_params", {}) or {}
+                model_name = model_alias(params.get("model", ""))
 
     if not model_name:
         try:
@@ -85,8 +106,8 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
             .get("model", {})
             .get("primary", "")
         )
-        if isinstance(primary_model, str) and primary_model.startswith(("litellm/", "defenseclaw/")):
-            model_name = primary_model.split("/", 1)[1].strip()
+        if isinstance(primary_model, str):
+            model_name = model_alias(primary_model)
 
     if not model_name:
         raise SystemExit(
