@@ -20,6 +20,11 @@ if [ ! -d "${DEFENSECLAW_DIR}" ]; then
 fi
 
 cd "${DEFENSECLAW_DIR}"
+if [ ! -f ".venv/bin/activate" ]; then
+  echo "DefenseClaw is not installed in ${DEFENSECLAW_DIR} yet." >&2
+  echo "Run ./scripts/install_defenseclaw_temp.sh first." >&2
+  exit 1
+fi
 # shellcheck disable=SC1091
 source .venv/bin/activate
 
