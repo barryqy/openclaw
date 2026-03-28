@@ -231,6 +231,74 @@ ensure_lab_scanners() {
   echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
 }
 
+patch_defenseclaw_guardrail_api_base() {
+  python3 - "${DEFENSECLAW_DIR}" <<'PY'
+from pathlib import Path
+import sys
+
+
+root = Path(sys.argv[1])
+
+config_go = root / "internal" / "config" / "config.go"
+config_py = root / "cli" / "defenseclaw" / "config.py"
+proxy_go = root / "internal" / "gateway" / "proxy.go"
+
+
+def replace_once(text: str, old: str, new: str, label: str) -> str:
+    if old not in text:
+        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
+    return text.replace(old, new, 1)
+
+
+text = config_go.read_text(encoding="utf-8")
+if 'mapstructure:"api_base"' not in text:
+    text = replace_once(
+        text,
+        'APIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
+        'APIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n'
+        '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
+        "GuardrailConfig.APIBase",
+    )
+    config_go.write_text(text, encoding="utf-8")
+
+text = config_py.read_text(encoding="utf-8")
+if 'api_base: str = ""' not in text:
+    text = replace_once(
+        text,
+        '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
+        '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n'
+        '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
+        "GuardrailConfig.api_base",
+    )
+if 'api_base=raw.get("api_base", ""),' not in text:
+    text = replace_once(
+        text,
+        '        api_key_env=raw.get("api_key_env", ""),\n',
+        '        api_key_env=raw.get("api_key_env", ""),\n'
+        '        api_base=raw.get("api_base", ""),\n',
+        "_merge_guardrail api_base",
+    )
+config_py.write_text(text, encoding="utf-8")
+
+text = proxy_go.read_text(encoding="utf-8")
+if "NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)" not in text:
+    text = replace_once(
+        text,
+        "provider, err := NewProvider(cfg.Model, apiKey)\n"
+        "\tif err != nil {\n"
+        '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
+        "\t}\n",
+        "provider := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n",
+        "guardrail provider wiring",
+    )
+    proxy_go.write_text(text, encoding="utf-8")
+PY
+
+  if command -v gofmt >/dev/null 2>&1; then
+    gofmt -w internal/config/config.go internal/gateway/proxy.go
+  fi
+}
+
 defenseclaw_parent_dir="$(dirname "${DEFENSECLAW_DIR}")"
 mkdir -p "${defenseclaw_parent_dir}"
 cd "${defenseclaw_parent_dir}"
@@ -244,6 +312,7 @@ cd "${DEFENSECLAW_DIR}"
 
 ensure_go_runtime
 ensure_uv_runtime
+patch_defenseclaw_guardrail_api_base
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "npm is required to build the DefenseClaw plugin." >&2

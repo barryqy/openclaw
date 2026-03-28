@@ -112,6 +112,7 @@ cfg.guardrail.mode = "action"
 cfg.guardrail.scanner_mode = "local"
 cfg.guardrail.model = guardrail_model
 cfg.guardrail.model_name = model_id
+cfg.guardrail.api_base = os.environ.get("OPENCLAW_LLM_API_BASE", "")
 cfg.guardrail.original_model = cfg.guardrail.original_model or current_model
 cfg.guardrail.api_key_env = "LLM_API_KEY"
 cfg.save()
@@ -182,6 +183,7 @@ if not model_name or not upstream_model:
 
 guardrail_cfg["model_name"] = model_name
 guardrail_cfg["model"] = upstream_model
+guardrail_cfg["api_base"] = os.environ.get("OPENCLAW_LLM_API_BASE", "")
 cfg["guardrail"] = guardrail_cfg
 cfg_path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False), encoding="utf-8")
 
