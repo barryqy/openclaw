@@ -51,10 +51,18 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
     cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
     litellm_path = Path.home() / ".defenseclaw" / "litellm_config.yaml"
 
+    if not cfg_path.exists():
+        raise SystemExit(
+            "DefenseClaw config is missing at ~/.defenseclaw/config.yaml. "
+            "Run ./scripts/configure_defenseclaw.sh first."
+        )
+
     cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
     guardrail = cfg.get("guardrail", {})
     port = guardrail.get("port", 4000)
-    litellm_cfg = yaml.safe_load(litellm_path.read_text(encoding="utf-8")) or {}
+    litellm_cfg = {}
+    if litellm_path.exists():
+        litellm_cfg = yaml.safe_load(litellm_path.read_text(encoding="utf-8")) or {}
     model_name = str(guardrail.get("model_name", "")).strip()
 
     if not model_name:
@@ -77,12 +85,13 @@ def load_defenseclaw_settings() -> tuple[str, str, str]:
             .get("model", {})
             .get("primary", "")
         )
-        if isinstance(primary_model, str) and primary_model.startswith("litellm/"):
+        if isinstance(primary_model, str) and primary_model.startswith(("litellm/", "defenseclaw/")):
             model_name = primary_model.split("/", 1)[1].strip()
 
     if not model_name:
         raise SystemExit(
-            "DefenseClaw guardrail.model_name is empty and no LiteLLM model_name could be derived."
+            "DefenseClaw guardrail.model_name is empty and no guarded model could be derived. "
+            "Run ./scripts/configure_defenseclaw.sh first."
         )
 
     master_key = derive_litellm_master_key(cfg)
