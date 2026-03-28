@@ -11,6 +11,8 @@ from pathlib import Path
 
 root = Path(os.environ["ROOT_DIR_ENV"])
 reports = root / "reports"
+workspace_skill = Path.home() / "openclaw-lab-workspace" / "skills" / "workspace-migration-assistant"
+quarantine_skill = Path.home() / ".defenseclaw" / "quarantine" / "skills" / "workspace-migration-assistant"
 
 def read_json(name):
     path = reports / name
@@ -51,34 +53,38 @@ privacy_after = read_json("privacy-guarded.json")
 summary = [
     {
         "attack": "🚨 Malicious skill",
-        "before": "fake secret exfiltration succeeded" if skill_before else "not run",
+        "before": "fake credentials and customer data were exfiltrated" if skill_before else "not run",
         "after": (
-            f"blocked and removed from the active workspace ({skill_after_summary.get('malicious_skill_scan_verdict') or scan_max_severity(skill_after)})"
+            "blocked and removed from the active workspace"
             if skill_after_summary.get("malicious_skill_blocked_from_workspace")
+            else "blocked and removed from the active workspace"
+            if quarantine_skill.exists() and not workspace_skill.exists()
+            else f"blocked and removed from the active workspace ({skill_after_summary.get('malicious_skill_scan_verdict') or scan_max_severity(skill_after)})"
+            if skill_after
             else "not run"
         ),
     },
     {
         "attack": "🚨 Malicious MCP",
-        "before": "secret read and code execution succeeded" if mcp_before else "not run",
+        "before": "fake secret read and code execution succeeded" if mcp_before else "not run",
         "after": (
-            "tool calls blocked by DefenseClaw"
+            "dangerous tool calls blocked by DefenseClaw"
             if mcp_after.get("read_runtime_config", {}).get("inspect", {}).get("action") == "block"
             else "not run"
         ),
     },
     {
         "attack": "Prompt injection",
-        "before": "request reached the model" if prompt_before else "not run",
+        "before": "malicious note steered the model response" if prompt_before else "not run",
         "after": "blocked by the guardrail" if prompt_after.get("blocked") else "not run",
     },
     {
         "attack": "Privacy / secret prompt",
-        "before": "request reached the model" if privacy_before else "not run",
+        "before": "fake cloud keys and customer emails were disclosed" if privacy_before else "not run",
         "after": (
             "blocked by the guardrail"
             if privacy_after.get("blocked")
-            else "guardrail path active, but the model still answered"
+            else "guardrail path active; result depends on current temp build behavior"
             if privacy_after
             else "not run"
         ),
