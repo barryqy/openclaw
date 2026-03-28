@@ -20,7 +20,7 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/run_skill_exfil_demo.sh` shows the 🚨 malicious skill stealing fake secrets into a localhost collector.
 - `scripts/run_mcp_abuse_demo.py` shows the 🚨 malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_llm_guardrail_demo.py` drives the baseline and guarded prompt/privacy tests against the same LLM path.
-- `scripts/install_defenseclaw_temp.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
+- `scripts/install_defenseclaw.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
 - `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace and points OpenClaw at the built-in lab LLM over its OpenAI-compatible endpoint.
 - `scripts/manage_openclaw_gateway.sh` keeps the OpenClaw gateway alive in the background for this lab session without relying on systemd.
 
@@ -42,7 +42,7 @@ openclaw config file
 ./.venv/bin/python ./scripts/run_mcp_abuse_demo.py
 python3 ./scripts/run_llm_guardrail_demo.py baseline-injection
 python3 ./scripts/run_llm_guardrail_demo.py baseline-privacy
-./scripts/install_defenseclaw_temp.sh
+./scripts/install_defenseclaw.sh
 ./scripts/configure_defenseclaw.sh
 source ./scripts/lab-env.sh
 /home/developer/src/defenseclaw/.venv/bin/defenseclaw skill scan workspace-migration-assistant --path "${OPENCLAW_SKILLS_DIR}/workspace-migration-assistant"

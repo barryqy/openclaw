@@ -42,8 +42,9 @@ export OPENCLAW_GATEWAY_LOG_FILE="${OPENCLAW_GATEWAY_LOG_FILE:-${OPENCLAW_STATE_
 export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
 export OPENCLAW_CUSTOM_PROVIDER_ID="${OPENCLAW_CUSTOM_PROVIDER_ID:-llm-image}"
 export DEFENSECLAW_DIR="${DEFENSECLAW_DIR:-/home/developer/src/defenseclaw}"
-tmpDefenseClawRepo="${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw.git}"
-export DEFENSECLAW_TEMP_REPO="${tmpDefenseClawRepo}"
+defenseclawRepo="${DEFENSECLAW_REPO:-${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw.git}}"
+export DEFENSECLAW_REPO="${defenseclawRepo}"
+export DEFENSECLAW_TEMP_REPO="${defenseclawRepo}"
 export OPENCLAW_DEMO_PORT="${OPENCLAW_DEMO_PORT:-17777}"
 
 tmpLabApiBase="${OPENCLAW_LLM_API_BASE:-}"

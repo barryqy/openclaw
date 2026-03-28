@@ -271,8 +271,8 @@ ensure_defenseclaw_repo() {
   mkdir -p "${repo_parent}"
 
   if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-    echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
-    git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
+    echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
+    git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
     return 0
   fi
 
@@ -283,8 +283,8 @@ ensure_defenseclaw_repo() {
   fi
 
   current_remote="$(git -C "${DEFENSECLAW_DIR}" remote get-url origin 2>/dev/null || true)"
-  if [ "${current_remote}" != "${DEFENSECLAW_TEMP_REPO}" ]; then
-    git -C "${DEFENSECLAW_DIR}" remote set-url origin "${DEFENSECLAW_TEMP_REPO}" || true
+  if [ "${current_remote}" != "${DEFENSECLAW_REPO}" ]; then
+    git -C "${DEFENSECLAW_DIR}" remote set-url origin "${DEFENSECLAW_REPO}" || true
   fi
 
   if defenseclaw_repo_looks_legacy; then
@@ -292,8 +292,8 @@ ensure_defenseclaw_repo() {
     echo "Detected an older DefenseClaw checkout without the built-in guardrail proxy."
     echo "Moving it to ${backup_dir}"
     mv "${DEFENSECLAW_DIR}" "${backup_dir}"
-    echo "Cloning DefenseClaw from ${DEFENSECLAW_TEMP_REPO}..."
-    git clone "${DEFENSECLAW_TEMP_REPO}" "${DEFENSECLAW_DIR}"
+    echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
+    git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
     return 0
   fi
 
@@ -322,6 +322,7 @@ root = Path(sys.argv[1])
 config_go = root / "internal" / "config" / "config.go"
 config_py = root / "cli" / "defenseclaw" / "config.py"
 proxy_go = root / "internal" / "gateway" / "proxy.go"
+provider_go = root / "internal" / "gateway" / "provider.go"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -432,10 +433,101 @@ if "NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)" not in text:
         "guardrail provider wiring",
     )
     proxy_go.write_text(text, encoding="utf-8")
+
+text = provider_go.read_text(encoding="utf-8")
+if "openAIChatCompletionURLs" not in text:
+    text = replace_once(
+        text,
+        "type openaiProvider struct {\n\tmodel   string\n\tapiKey  string\n\tbaseURL string\n}\n",
+        "type openaiProvider struct {\n\tmodel   string\n\tapiKey  string\n\tbaseURL string\n}\n\n"
+        "func openAIChatCompletionURLs(baseURL string) []string {\n"
+        '\tbase := strings.TrimRight(baseURL, "/")\n\n'
+        "\tswitch {\n"
+        '\tcase base == "":\n'
+        '\t\treturn []string{"/v1/chat/completions"}\n'
+        '\tcase strings.HasSuffix(base, "/chat/completions"):\n'
+        "\t\treturn []string{base}\n"
+        '\tcase strings.HasSuffix(base, "/v1"):\n'
+        '\t\treturn []string{base + "/chat/completions"}\n'
+        '\tcase base == "https://api.openai.com":\n'
+        '\t\treturn []string{base + "/v1/chat/completions"}\n'
+        "\tdefault:\n"
+        "\t\treturn []string{base + \"/v1/chat/completions\", base + \"/chat/completions\"}\n"
+        "\t}\n"
+        "}\n\n"
+        "func (p *openaiProvider) doChatRequest(ctx context.Context, body []byte) (*http.Response, error) {\n"
+        "\turls := openAIChatCompletionURLs(p.baseURL)\n"
+        "\tvar lastStatusErr error\n\n"
+        "\tfor idx, url := range urls {\n"
+        "\t\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n"
+        "\t\tif err != nil {\n"
+        '\t\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
+        "\t\t}\n"
+        '\t\thttpReq.Header.Set("Content-Type", "application/json")\n'
+        '\t\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
+        "\t\tresp, err := providerHTTPClient.Do(httpReq)\n"
+        "\t\tif err != nil {\n"
+        '\t\t\treturn nil, fmt.Errorf("provider: request failed: %w", err)\n'
+        "\t\t}\n\n"
+        "\t\tif resp.StatusCode != http.StatusNotFound || idx == len(urls)-1 {\n"
+        "\t\t\treturn resp, nil\n"
+        "\t\t}\n\n"
+        "\t\trespBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))\n"
+        "\t\tresp.Body.Close()\n"
+        '\t\tlastStatusErr = fmt.Errorf("provider: upstream returned %d: %s", resp.StatusCode, string(respBody))\n'
+        "\t}\n\n"
+        "\tif lastStatusErr != nil {\n"
+        "\t\treturn nil, lastStatusErr\n"
+        "\t}\n"
+        '\treturn nil, fmt.Errorf("provider: no upstream URLs available")\n'
+        "}\n",
+        "openai provider helper insertion",
+    )
+
+    text = replace_once(
+        text,
+        '\turl := p.baseURL + "/v1/chat/completions"\n'
+        '\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n'
+        '\tif err != nil {\n'
+        '\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
+        '\t}\n'
+        '\thttpReq.Header.Set("Content-Type", "application/json")\n'
+        '\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
+        '\tresp, err := providerHTTPClient.Do(httpReq)\n'
+        '\tif err != nil {\n'
+        '\t\treturn nil, fmt.Errorf("provider: request failed: %w", err)\n'
+        '\t}\n',
+        "\tresp, err := p.doChatRequest(ctx, body)\n"
+        "\tif err != nil {\n"
+        "\t\treturn nil, err\n"
+        "\t}\n",
+        "openai provider non-stream request path",
+    )
+
+    text = replace_once(
+        text,
+        '\turl := p.baseURL + "/v1/chat/completions"\n'
+        '\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n'
+        '\tif err != nil {\n'
+        '\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
+        '\t}\n'
+        '\thttpReq.Header.Set("Content-Type", "application/json")\n'
+        '\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
+        '\tresp, err := providerHTTPClient.Do(httpReq)\n'
+        '\tif err != nil {\n'
+        '\t\treturn nil, fmt.Errorf("provider: stream request failed: %w", err)\n'
+        '\t}\n',
+        "\tresp, err := p.doChatRequest(ctx, body)\n"
+        "\tif err != nil {\n"
+        "\t\treturn nil, err\n"
+        "\t}\n",
+        "openai provider streaming request path",
+    )
+    provider_go.write_text(text, encoding="utf-8")
 PY
 
   if command -v gofmt >/dev/null 2>&1; then
-    gofmt -w internal/config/config.go internal/gateway/proxy.go
+    gofmt -w internal/config/config.go internal/gateway/proxy.go internal/gateway/provider.go
   fi
 }
 
