@@ -248,5 +248,3 @@ fi
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
 defenseclaw status
-echo
-defenseclaw sidecar status || true

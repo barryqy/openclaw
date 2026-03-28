@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hmac
 import hashlib
 import json
 import os
@@ -39,7 +40,11 @@ def derive_litellm_master_key(cfg: dict) -> str:
 
         path = Path(raw_path).expanduser()
         try:
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+            digest = hmac.new(
+                b"defenseclaw-proxy-master-key",
+                path.read_bytes(),
+                hashlib.sha256,
+            ).hexdigest()[:32]
         except OSError:
             continue
         return f"sk-dc-{digest}"
