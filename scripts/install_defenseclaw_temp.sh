@@ -231,6 +231,22 @@ ensure_lab_scanners() {
   echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
 }
 
+defenseclaw_venv_is_broken() {
+  if [ ! -d ".venv" ]; then
+    return 1
+  fi
+
+  if [ ! -x ".venv/bin/python" ]; then
+    return 0
+  fi
+
+  if ! ".venv/bin/python" -V >/dev/null 2>&1; then
+    return 0
+  fi
+
+  return 1
+}
+
 defenseclaw_repo_looks_legacy() {
   [ ! -f "${DEFENSECLAW_DIR}/internal/gateway/proxy.go" ]
 }
@@ -428,6 +444,11 @@ if ! command -v npm >/dev/null 2>&1; then
 fi
 
 UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
+
+if defenseclaw_venv_is_broken; then
+  echo "Detected a broken DefenseClaw virtual environment. Rebuilding .venv..."
+  rm -rf .venv
+fi
 
 if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; then
   rm -rf .venv
