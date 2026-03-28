@@ -180,6 +180,39 @@ primary_model = f"{provider_id}/{model_id}"
 if not base_url:
     raise SystemExit("OPENCLAW_LLM_API_BASE is required to normalize openclaw.json.")
 
+compat_defaults = {
+    "supportsDeveloperRole": False,
+    "supportsTools": False,
+    "supportsUsageInStreaming": False,
+    "supportsStore": False,
+    "maxTokensField": "max_tokens",
+}
+
+
+def apply_lab_model_defaults(item):
+    next_item = dict(item) if isinstance(item, dict) else {}
+    next_item.setdefault("id", model_id)
+    next_item.setdefault("name", f"{model_id} (Custom Provider)")
+    next_item.setdefault("contextWindow", 16000)
+    next_item.setdefault("maxTokens", 4096)
+    next_item.setdefault("input", ["text"])
+    next_item.setdefault(
+        "cost",
+        {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+        },
+    )
+    next_item.setdefault("reasoning", False)
+
+    current_compat = next_item.get("compat")
+    compat = dict(current_compat) if isinstance(current_compat, dict) else {}
+    compat.update(compat_defaults)
+    next_item["compat"] = compat
+    return next_item
+
 agents = cfg.setdefault("agents", {}).setdefault("defaults", {})
 agents.setdefault("model", {})["primary"] = primary_model
 
@@ -192,20 +225,7 @@ if isinstance(params, dict):
     if not params:
         entry.pop("params", None)
 
-model_defaults = {
-    "id": model_id,
-    "name": f"{model_id} (Custom Provider)",
-    "contextWindow": 16000,
-    "maxTokens": 4096,
-    "input": ["text"],
-    "cost": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0,
-    },
-    "reasoning": False,
-}
+model_defaults = apply_lab_model_defaults({})
 
 models_cfg = cfg.setdefault("models", {})
 models_cfg["mode"] = models_cfg.get("mode") or "merge"
@@ -218,6 +238,9 @@ merged_models = []
 if isinstance(existing_models, list):
     for item in existing_models:
         if not isinstance(item, dict):
+            continue
+        if item.get("id") == model_id:
+            merged_models.append(apply_lab_model_defaults(item))
             continue
         merged_models.append(item)
 
