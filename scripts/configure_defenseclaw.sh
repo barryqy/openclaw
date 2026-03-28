@@ -88,7 +88,9 @@ show_guardrail_debug() {
   echo "DefenseClaw guardrail proxy did not become healthy." >&2
   echo "The sidecar API may be running while the protected LLM path is still down." >&2
   echo >&2
-  defenseclaw sidecar status || true
+  defenseclaw status || true
+  echo >&2
+  defenseclaw-gateway status || true
 }
 
 python - <<'PY'
