@@ -16,6 +16,7 @@ import yaml
 ROOT_DIR = Path(__file__).resolve().parent.parent
 REPORT_DIR = ROOT_DIR / "reports"
 DEMO_DIR = ROOT_DIR / ".demo-state"
+PREVIEW_LIMIT = 600
 WORKSPACE_DIR = Path(
     os.environ.get("OPENCLAW_WORKSPACE", str(Path.home() / "openclaw-lab-workspace"))
 ).expanduser()
@@ -223,6 +224,12 @@ def main() -> None:
         marker in lower_preview
         for marker in ("defenseclaw", "security concern", "unable to process")
     )
+    clipped_preview = assistant
+    response_truncated = False
+    if len(clipped_preview) > PREVIEW_LIMIT:
+        clipped_preview = clipped_preview[: PREVIEW_LIMIT - 3].rstrip() + "..."
+        response_truncated = True
+
     summary = {
         "mode": args.mode,
         "endpoint": endpoint,
@@ -230,7 +237,8 @@ def main() -> None:
         "http_status": response.status_code,
         "blocked": block_hit,
         "response_kind": "blocked" if block_hit else "model-response",
-        "response_preview": assistant[:280],
+        "response_preview": clipped_preview,
+        "response_truncated": response_truncated,
     }
 
     if "injection" in args.mode:
