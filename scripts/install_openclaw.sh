@@ -283,6 +283,9 @@ existing_provider = providers.get(provider_id) or {}
 existing_api_key = existing_provider.get("apiKey")
 existing_models = existing_provider.get("models")
 
+logging_cfg = cfg.setdefault("logging", {})
+logging_cfg["consoleLevel"] = "error"
+
 merged_models = []
 if isinstance(existing_models, list):
     for item in existing_models:
