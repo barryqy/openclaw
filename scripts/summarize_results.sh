@@ -82,9 +82,9 @@ summary = [
         "attack": "Privacy / secret prompt",
         "before": "fake cloud keys and customer emails were disclosed" if privacy_before else "not run",
         "after": (
-            "blocked by the guardrail"
+            "blocked by the lab's tightened privacy guardrail"
             if privacy_after.get("blocked")
-            else "guardrail path active; result depends on current temp build behavior"
+            else "guardrail path active, but the lab-specific privacy block did not trigger"
             if privacy_after
             else "not run"
         ),

@@ -319,7 +319,8 @@ def main() -> None:
     elif "privacy" in args.mode:
         if block_hit:
             summary["what_to_notice"] = (
-                "DefenseClaw blocked the request before the model could reveal the fake keys or customer emails."
+                "In this lab, DefenseClaw is tightened to promote explicit secret-exfil prompts to blocking "
+                "before the model could reveal the fake keys or customer emails."
             )
         else:
             summary["what_to_notice"] = (

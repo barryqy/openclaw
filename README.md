@@ -62,4 +62,5 @@ python3 ./scripts/run_llm_guardrail_demo.py guarded-privacy
 - The exfiltration demo only posts to `127.0.0.1`.
 - The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
 - `llm-image/<model>` in the lab config is the lab's custom provider label. It still talks to the built-in Learning Lab LLM from `LLM_BASE_URL` over an OpenAI-compatible API, not a separate public OpenAI account.
+- Current upstream DefenseClaw still treats MEDIUM secret matches as alert-only. This lab intentionally applies a small local guardrail hardening so the privacy replay blocks explicit secret-exfil prompts on the protected path.
 - The guide avoids `source .venv/bin/activate` on purpose so the shell stays predictable between OpenClaw and DefenseClaw steps.

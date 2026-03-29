@@ -531,6 +531,104 @@ PY
   fi
 }
 
+# Lab-only hardening: upstream DefenseClaw currently alerts on MEDIUM secret
+# matches. For this privacy replay, we promote explicit secret-exfil prompts to
+# HIGH so action mode blocks them in the lab.
+patch_defenseclaw_lab_privacy_guardrail() {
+  python3 - "${DEFENSECLAW_DIR}" <<'PY'
+from pathlib import Path
+import sys
+
+
+root = Path(sys.argv[1])
+guardrail_go = root / "internal" / "gateway" / "guardrail.go"
+text = guardrail_go.read_text(encoding="utf-8")
+
+request_verbs_block = """var requestVerbs = []string{
+\t"extract", "reveal", "dump", "print", "list",
+}
+
+var privacyTargets = []string{
+\t"cloud key", "cloud keys", "customer email", "customer emails",
+\t"owner_email", "credentials:", "aws_access_key", "aws_secret_access",
+}
+
+func containsAnyPattern(text string, patterns []string) bool {
+\tfor _, p := range patterns {
+\t\tif strings.Contains(text, p) {
+\t\t\treturn true
+\t\t}
+\t}
+\treturn false
+}
+
+"""
+
+if "var requestVerbs = []string{" not in text:
+    anchor = """var exfilPatterns = []string{
+\t"/etc/passwd", "/etc/shadow", "base64 -d", "base64 --decode",
+\t"exfiltrate", "send to my server", "curl http",
+}
+
+"""
+    if anchor not in text:
+        raise SystemExit("Could not find exfilPatterns block while patching DefenseClaw for the lab.")
+    text = text.replace(anchor, anchor + request_verbs_block, 1)
+
+severity_block = """\tif severity == "MEDIUM" {
+\t\tfor _, p := range exfilPatterns {
+\t\t\tfor _, f := range flags {
+\t\t\t\tif f == p {
+\t\t\t\t\tseverity = "HIGH"
+\t\t\t\t\tbreak
+\t\t\t\t}
+\t\t\t}
+\t\t\tif severity == "HIGH" {
+\t\t\t\tbreak
+\t\t\t}
+\t\t}
+\t}
+
+\tif direction == "prompt" && severity == "MEDIUM" &&
+\t\tcontainsAnyPattern(lower, requestVerbs) &&
+\t\tcontainsAnyPattern(lower, privacyTargets) {
+\t\tseverity = "HIGH"
+\t\tflags = append(flags, "privacy-exfil-request")
+\t}
+
+\taction := "alert"
+"""
+
+old_block = """\tif severity == "MEDIUM" {
+\t\tfor _, p := range exfilPatterns {
+\t\t\tfor _, f := range flags {
+\t\t\t\tif f == p {
+\t\t\t\t\tseverity = "HIGH"
+\t\t\t\t\tbreak
+\t\t\t\t}
+\t\t\t}
+\t\t\tif severity == "HIGH" {
+\t\t\t\tbreak
+\t\t\t}
+\t\t}
+\t}
+
+\taction := "alert"
+"""
+
+if 'flags = append(flags, "privacy-exfil-request")' not in text:
+    if old_block not in text:
+        raise SystemExit("Could not find guardrail severity block while patching DefenseClaw for the lab.")
+    text = text.replace(old_block, severity_block, 1)
+
+guardrail_go.write_text(text, encoding="utf-8")
+PY
+
+  if command -v gofmt >/dev/null 2>&1; then
+    gofmt -w internal/gateway/guardrail.go
+  fi
+}
+
 ensure_defenseclaw_repo
 
 cd "${DEFENSECLAW_DIR}"
@@ -538,6 +636,7 @@ cd "${DEFENSECLAW_DIR}"
 ensure_go_runtime
 ensure_uv_runtime
 patch_defenseclaw_guardrail_api_base
+patch_defenseclaw_lab_privacy_guardrail
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "npm is required to build the DefenseClaw plugin." >&2
