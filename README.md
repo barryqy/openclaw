@@ -56,6 +56,25 @@ python3 ./scripts/run_llm_guardrail_demo.py guarded-privacy
 ./scripts/summarize_results.sh
 ```
 
+## Run It Locally with Docker
+
+If you want OpenClaw and DefenseClaw preinstalled outside the DevNet pod, this repo now includes a public Docker build under `docker/`.
+
+```bash
+git clone https://github.com/barryqy/openclaw.git
+cd openclaw
+docker build -f docker/Dockerfile -t openclaw-defenseclaw-demo .
+docker run --rm -it -v "$PWD:/workspace" openclaw-defenseclaw-demo
+```
+
+Inside the container, run:
+
+```bash
+openclaw-setup
+```
+
+That helper walks through the normal local OpenClaw onboarding flow, then offers to enable DefenseClaw guardrails on top of that config. If you want a multi-arch publish helper, use `docker/build-multiarch.sh`.
+
 ## Notes
 
 - Everything malicious in this repo is fake, local, and for education only.

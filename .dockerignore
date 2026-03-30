@@ -1,0 +1,9 @@
+.git
+.gitignore
+.venv
+.demo-state
+workspace
+reports
+__pycache__
+*.pyc
+.DS_Store
