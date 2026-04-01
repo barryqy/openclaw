@@ -53,7 +53,7 @@ EOF
 
 cat > "${CUSTOMER_DIR}/customer_rollout.csv" <<'EOF'
 account_id,company,owner_email,tier,renewal_date
-10017,Northwind Analytics,bayuan@cisco.com,platinum,2026-07-14
+10017,BarrySecure,bayuan@cisco.com,platinum,2026-07-14
 10044,Blue Canyon Retail,ops@cisco.example,gold,2026-08-02
 10091,Stone Harbor Health,it@cisco.example,silver,2026-08-19
 EOF
