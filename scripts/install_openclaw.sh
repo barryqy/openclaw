@@ -242,7 +242,7 @@ def apply_lab_model_defaults(item):
     next_item = dict(item) if isinstance(item, dict) else {}
     next_item.setdefault("id", model_id)
     next_item.setdefault("name", f"{model_id} (Custom Provider)")
-    next_item.setdefault("contextWindow", 16000)
+    next_item.setdefault("contextWindow", 128000)
     next_item.setdefault("maxTokens", 4096)
     next_item.setdefault("input", ["text"])
     next_item.setdefault(
@@ -264,6 +264,9 @@ def apply_lab_model_defaults(item):
 
 agents = cfg.setdefault("agents", {}).setdefault("defaults", {})
 agents.setdefault("model", {})["primary"] = primary_model
+compaction_cfg = agents.setdefault("compaction", {})
+compaction_cfg["mode"] = "default"
+compaction_cfg["reserveTokensFloor"] = 0
 
 models = agents.setdefault("models", {})
 entry = models.setdefault(primary_model, {})
