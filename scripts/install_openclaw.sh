@@ -284,7 +284,7 @@ existing_api_key = existing_provider.get("apiKey")
 existing_models = existing_provider.get("models")
 
 logging_cfg = cfg.setdefault("logging", {})
-logging_cfg["consoleLevel"] = "error"
+logging_cfg["consoleLevel"] = "silent"
 
 merged_models = []
 if isinstance(existing_models, list):
