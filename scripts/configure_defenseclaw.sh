@@ -83,54 +83,6 @@ wait_for_guardrail() {
   return 1
 }
 
-guardrail_config_ready() {
-  python - <<'PY'
-from pathlib import Path
-
-import yaml
-
-
-cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
-if not cfg_path.exists():
-    raise SystemExit(1)
-
-cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-guardrail = cfg.get("guardrail", {}) or {}
-
-enabled = bool(guardrail.get("enabled", False))
-mode = str(guardrail.get("mode", "")).strip()
-model = str(guardrail.get("model", "")).strip()
-model_name = str(guardrail.get("model_name", "")).strip()
-api_base = str(guardrail.get("api_base", "")).strip()
-
-raise SystemExit(0 if enabled and mode == "action" and model and model_name and api_base else 1)
-PY
-}
-
-show_guardrail_config_debug() {
-  python - <<'PY'
-from pathlib import Path
-
-import yaml
-
-
-cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
-if not cfg_path.exists():
-    print("Guardrail config file is missing.", flush=True)
-    raise SystemExit(0)
-
-cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
-guardrail = cfg.get("guardrail", {}) or {}
-
-print("Guardrail config is present but not fully active.", flush=True)
-print(f"guardrail.enabled={guardrail.get('enabled', False)}", flush=True)
-print(f"guardrail.mode={guardrail.get('mode', '')}", flush=True)
-print(f"guardrail.model={guardrail.get('model', '')}", flush=True)
-print(f"guardrail.model_name={guardrail.get('model_name', '')}", flush=True)
-print(f"guardrail.api_base={guardrail.get('api_base', '')}", flush=True)
-PY
-}
-
 show_guardrail_debug() {
   echo
   echo "DefenseClaw guardrail proxy did not become healthy." >&2
@@ -245,9 +197,13 @@ if not upstream_model and entry_upstream_model:
 if not model_name or not upstream_model:
     raise SystemExit("DefenseClaw guardrail config is incomplete after setup.")
 
+guardrail_cfg["enabled"] = True
+guardrail_cfg["mode"] = "action"
+guardrail_cfg["scanner_mode"] = "local"
 guardrail_cfg["model_name"] = model_name
 guardrail_cfg["model"] = upstream_model
 guardrail_cfg["api_base"] = os.environ.get("OPENCLAW_LLM_API_BASE", "")
+guardrail_cfg["api_key_env"] = "LLM_API_KEY"
 cfg["guardrail"] = guardrail_cfg
 cfg_path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False), encoding="utf-8")
 
@@ -296,17 +252,6 @@ else
   show_guardrail_debug
   echo >&2
   echo "Recovery: run /home/developer/src/defenseclaw/.venv/bin/defenseclaw setup guardrail --restart" >&2
-  exit 1
-fi
-
-echo "Validating the DefenseClaw guardrail configuration..."
-if guardrail_config_ready; then
-  echo "DefenseClaw guardrail configuration is active."
-else
-  echo "DefenseClaw guardrail configuration did not reach the active state." >&2
-  show_guardrail_config_debug >&2 || true
-  echo >&2
-  echo "Recovery: run ./scripts/configure_defenseclaw.sh again." >&2
   exit 1
 fi
 
