@@ -240,21 +240,18 @@ compat_defaults = {
 
 def apply_lab_model_defaults(item):
     next_item = dict(item) if isinstance(item, dict) else {}
-    next_item.setdefault("id", model_id)
-    next_item.setdefault("name", f"{model_id} (Custom Provider)")
-    next_item.setdefault("contextWindow", 128000)
-    next_item.setdefault("maxTokens", 4096)
-    next_item.setdefault("input", ["text"])
-    next_item.setdefault(
-        "cost",
-        {
-            "input": 0,
-            "output": 0,
-            "cacheRead": 0,
-            "cacheWrite": 0,
-        },
-    )
-    next_item.setdefault("reasoning", False)
+    next_item["id"] = model_id
+    next_item["name"] = f"{model_id} (Custom Provider)"
+    next_item["contextWindow"] = 128000
+    next_item["maxTokens"] = 4096
+    next_item["input"] = ["text"]
+    next_item["cost"] = {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+    }
+    next_item["reasoning"] = False
 
     current_compat = next_item.get("compat")
     compat = dict(current_compat) if isinstance(current_compat, dict) else {}
