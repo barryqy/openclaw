@@ -629,12 +629,16 @@ PY
   fi
 }
 
+echo "[1/6] Preparing the DefenseClaw repo..."
 ensure_defenseclaw_repo
 
 cd "${DEFENSECLAW_DIR}"
 
+echo "[2/6] Checking the local toolchain..."
 ensure_go_runtime
 ensure_uv_runtime
+
+echo "[3/6] Applying the lab compatibility and privacy patches..."
 patch_defenseclaw_guardrail_api_base
 patch_defenseclaw_lab_privacy_guardrail
 
@@ -655,12 +659,14 @@ if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; the
   rm -rf .venv
 fi
 
+echo "[4/6] Building the DefenseClaw Python environment..."
 uv venv .venv --python "${UV_PYTHON_BIN}"
 uv pip install -e . --python .venv/bin/python
 export npm_config_audit=false
 export npm_config_fund=false
 export npm_config_update_notifier=false
 stop_running_defenseclaw_gateway
+echo "[5/6] Installing the gateway and OpenClaw plugin..."
 if ! make gateway-install plugin-install; then
   echo "Retrying DefenseClaw install after stopping any leftover gateway process..."
   stop_running_defenseclaw_gateway
@@ -677,6 +683,7 @@ fi
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
+echo "[6/6] Installing scanner packages and initializing DefenseClaw..."
 ensure_lab_scanners
 defenseclaw init --skip-install
 defenseclaw policy activate strict

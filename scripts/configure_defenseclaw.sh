@@ -93,6 +93,7 @@ show_guardrail_debug() {
   defenseclaw-gateway status || true
 }
 
+echo "[1/5] Reading the current OpenClaw model settings..."
 python - <<'PY'
 import os
 
@@ -132,9 +133,11 @@ print(
 )
 PY
 
+echo "[2/5] Enabling DefenseClaw guardrail mode..."
 defenseclaw policy activate strict
 defenseclaw setup guardrail --non-interactive --mode action --restart
 
+echo "[3/5] Writing the local guardrail overrides for this lab..."
 python - <<'PY'
 import os
 from pathlib import Path
@@ -228,6 +231,7 @@ else:
 print(f"Updated {env_path} with the lab LLM credentials.")
 PY
 
+echo "[4/5] Restarting the DefenseClaw guardrail proxy..."
 if command -v defenseclaw-gateway >/dev/null 2>&1; then
   if ! defenseclaw-gateway restart; then
     defenseclaw-gateway start
@@ -247,6 +251,7 @@ else
   exit 1
 fi
 
+echo "[5/5] Reconnecting the OpenClaw gateway through the guarded path..."
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
 defenseclaw status
