@@ -323,6 +323,7 @@ config_go = root / "internal" / "config" / "config.go"
 config_py = root / "cli" / "defenseclaw" / "config.py"
 proxy_go = root / "internal" / "gateway" / "proxy.go"
 provider_go = root / "internal" / "gateway" / "provider.go"
+provider_openai_go = root / "internal" / "gateway" / "provider_openai.go"
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -373,69 +374,50 @@ def replace_guardrail_merge(text: str, transform, label: str) -> str:
     return text[:match.start()] + match.group(1) + body + match.group(3) + text[match.end():]
 
 
-text = config_go.read_text(encoding="utf-8")
-if "APIBase" not in guardrail_block(text, "GuardrailConfig"):
-    text = replace_guardrail_block(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '\tAPIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
-            '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
-            "GuardrailConfig.APIBase",
-        ),
-        "GuardrailConfig",
-    )
-config_go.write_text(text, encoding="utf-8")
+def patch_proxy_provider_wiring(text: str) -> str:
+    if "NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)" in text:
+        return text
 
-text = config_py.read_text(encoding="utf-8")
-guardrail_dataclass = re.search(
-    r"@dataclass\nclass GuardrailConfig:\n(?P<body>(?:    .*\n)+)",
-    text,
-)
-if not guardrail_dataclass or 'api_base: str = ""' not in guardrail_dataclass.group("body"):
-    text = replace_guardrail_dataclass(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
-            '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
-            "GuardrailConfig.api_base",
-        ),
-        "GuardrailConfig dataclass",
+    current_old = (
+        "provider, err := NewProvider(cfgModel, apiKey)\n"
+        "\tif err != nil {\n"
+        '\t\tfmt.Fprintf(os.Stderr, "[guardrail] failed to create provider for %q: %v\\n", cfgModel, err)\n'
+        "\t\treturn nil\n"
+        "\t}\n"
+        "\treturn provider\n"
     )
-merge_guardrail = re.search(
-    r"def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n(?P<body>.*?)\n    \)",
-    text,
-    re.S,
-)
-if not merge_guardrail or 'api_base=raw.get("api_base", ""),' not in merge_guardrail.group("body"):
-    text = replace_guardrail_merge(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '        api_key_env=raw.get("api_key_env", ""),\n',
-            '        api_base=raw.get("api_base", ""),\n',
-            "_merge_guardrail api_base",
-        ),
-        "_merge_guardrail",
+    current_new = (
+        "provider := NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)\n"
+        "\treturn provider\n"
     )
-config_py.write_text(text, encoding="utf-8")
 
-text = proxy_go.read_text(encoding="utf-8")
-if "NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)" not in text:
-    text = replace_once(
-        text,
+    legacy_old = (
         "provider, err := NewProvider(cfg.Model, apiKey)\n"
         "\tif err != nil {\n"
         '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
-        "\t}\n",
-        "provider := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n",
-        "guardrail provider wiring",
+        "\t}\n"
     )
-    proxy_go.write_text(text, encoding="utf-8")
+    legacy_new = "provider := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n"
 
-text = provider_go.read_text(encoding="utf-8")
-if "openAIChatCompletionURLs" not in text:
+    if current_old in text:
+        return text.replace(current_old, current_new, 1)
+    if legacy_old in text:
+        return text.replace(legacy_old, legacy_new, 1)
+
+    raise SystemExit("Could not find guardrail provider wiring while patching DefenseClaw for the lab.")
+
+
+def pick_openai_provider_file() -> Path:
+    if provider_openai_go.exists():
+        return provider_openai_go
+    return provider_go
+
+
+def patch_openai_provider_file(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    if "openAIChatCompletionURLs(" in text:
+        return
+
     text = replace_once(
         text,
         "type openaiProvider struct {\n\tmodel   string\n\tapiKey  string\n\tbaseURL string\n}\n",
@@ -523,11 +505,74 @@ if "openAIChatCompletionURLs" not in text:
         "\t}\n",
         "openai provider streaming request path",
     )
-    provider_go.write_text(text, encoding="utf-8")
+
+    path.write_text(text, encoding="utf-8")
+
+
+text = config_go.read_text(encoding="utf-8")
+if "APIBase" not in guardrail_block(text, "GuardrailConfig"):
+    text = replace_guardrail_block(
+        text,
+        lambda body: inject_after_line_once(
+            body,
+            '\tAPIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
+            '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
+            "GuardrailConfig.APIBase",
+        ),
+        "GuardrailConfig",
+    )
+config_go.write_text(text, encoding="utf-8")
+
+text = config_py.read_text(encoding="utf-8")
+guardrail_dataclass = re.search(
+    r"@dataclass\nclass GuardrailConfig:\n(?P<body>(?:    .*\n)+)",
+    text,
+)
+if not guardrail_dataclass or 'api_base: str = ""' not in guardrail_dataclass.group("body"):
+    text = replace_guardrail_dataclass(
+        text,
+        lambda body: inject_after_line_once(
+            body,
+            '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
+            '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
+            "GuardrailConfig.api_base",
+        ),
+        "GuardrailConfig dataclass",
+    )
+merge_guardrail = re.search(
+    r"def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n(?P<body>.*?)\n    \)",
+    text,
+    re.S,
+)
+if not merge_guardrail or 'api_base=raw.get("api_base", ""),' not in merge_guardrail.group("body"):
+    text = replace_guardrail_merge(
+        text,
+        lambda body: inject_after_line_once(
+            body,
+            '        api_key_env=raw.get("api_key_env", ""),\n',
+            '        api_base=raw.get("api_base", ""),\n',
+            "_merge_guardrail api_base",
+        ),
+        "_merge_guardrail",
+    )
+config_py.write_text(text, encoding="utf-8")
+
+text = proxy_go.read_text(encoding="utf-8")
+text = patch_proxy_provider_wiring(text)
+proxy_go.write_text(text, encoding="utf-8")
+
+patch_openai_provider_file(pick_openai_provider_file())
 PY
 
   if command -v gofmt >/dev/null 2>&1; then
-    gofmt -w internal/config/config.go internal/gateway/proxy.go internal/gateway/provider.go
+    gofmt_targets=(internal/config/config.go internal/gateway/proxy.go)
+    if [ -f internal/gateway/provider.go ]; then
+      gofmt_targets+=(internal/gateway/provider.go)
+    fi
+    if [ -f internal/gateway/provider_openai.go ]; then
+      gofmt_targets+=(internal/gateway/provider_openai.go)
+    fi
+    gofmt -w "${gofmt_targets[@]}"
   fi
 }
 
@@ -617,9 +662,34 @@ old_block = """\tif severity == "MEDIUM" {
 """
 
 if 'flags = append(flags, "privacy-exfil-request")' not in text:
-    if old_block not in text:
+    new_shape = """\tseverity := "MEDIUM"
+\tif isHigh {
+\t\tseverity = "HIGH"
+\t}
+
+\taction := "alert"
+"""
+    new_shape_with_privacy = """\tseverity := "MEDIUM"
+\tif isHigh {
+\t\tseverity = "HIGH"
+\t}
+
+\tif direction == "prompt" && severity == "MEDIUM" &&
+\t\tcontainsAnyPattern(lower, requestVerbs) &&
+\t\tcontainsAnyPattern(lower, privacyTargets) {
+\t\tseverity = "HIGH"
+\t\tflags = append(flags, "privacy-exfil-request")
+\t}
+
+\taction := "alert"
+"""
+
+    if new_shape in text:
+        text = text.replace(new_shape, new_shape_with_privacy, 1)
+    elif old_block in text:
+        text = text.replace(old_block, severity_block, 1)
+    else:
         raise SystemExit("Could not find guardrail severity block while patching DefenseClaw for the lab.")
-    text = text.replace(old_block, severity_block, 1)
 
 guardrail_go.write_text(text, encoding="utf-8")
 PY
