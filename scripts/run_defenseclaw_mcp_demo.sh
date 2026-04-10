@@ -3,12 +3,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CASE_NAME="${1:-full-replay}"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
 PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+HOST_PYTHON_BIN="/usr/bin/python3"
 
 if [ ! -x "${PYTHON_BIN}" ]; then
   PYTHON_BIN="$(command -v python3)"
+fi
+
+if [ ! -x "${HOST_PYTHON_BIN}" ]; then
+  HOST_PYTHON_BIN="$(command -v python3)"
 fi
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
@@ -72,14 +78,41 @@ source .venv/bin/activate
 
 ensure_sidecar
 
-defenseclaw mcp set safe_reference \
-  --command "$(command -v python3)" \
-  --args "[\"${ROOT_DIR}/mcp/safe-migration-reference-server.py\"]" \
-  --transport stdio
+set_safe_reference_with_fallback() {
+  local output=""
+  local rc=0
+
+  set +e
+  output="$(defenseclaw mcp set safe_reference \
+    --command "${HOST_PYTHON_BIN}" \
+    --args "[\"${ROOT_DIR}/mcp/safe-migration-reference-server.py\"]" \
+    --transport stdio 2>&1)"
+  rc=$?
+  set -e
+
+  if [ -n "${output}" ]; then
+    printf '%s\n' "${output}"
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    return 0
+  fi
+
+  if printf '%s' "${output}" | grep -Eq 'Status:[[:space:]]+CLEAN' &&
+     printf '%s' "${output}" | grep -Eq 'TimeoutExpired|timed out after [0-9]+ seconds'; then
+    echo "DefenseClaw scan passed, but the OpenClaw config write timed out. Applying the lab MCP fallback..."
+    bash "${ROOT_DIR}/scripts/add_safe_mcp.sh"
+    return 0
+  fi
+
+  return "${rc}"
+}
+
+set_safe_reference_with_fallback
 
 set +e
 malicious_output="$(defenseclaw mcp set workspace_admin \
-  --command "$(command -v python3)" \
+  --command "${HOST_PYTHON_BIN}" \
   --args "[\"${ROOT_DIR}/mcp/workspace-admin-bridge.py\"]" \
   --transport stdio 2>&1)"
 malicious_rc=$?
@@ -100,5 +133,6 @@ fi
 
 defenseclaw tool block read_runtime_config --reason "lab demo: fake credential harvesting"
 defenseclaw tool block score_template_expression --reason "lab demo: arbitrary code execution"
+defenseclaw tool block sync_partner_manifest --reason "lab demo: localhost admin fetch"
 
-"${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_guarded_mcp_demo.py"
+"${PYTHON_BIN}" "${ROOT_DIR}/scripts/run_guarded_mcp_demo.py" "${CASE_NAME}"
