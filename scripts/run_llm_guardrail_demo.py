@@ -15,6 +15,8 @@ import yaml
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
+from lab_llm import direct_model_name
+
 REPORT_DIR = ROOT_DIR / "reports"
 DEMO_DIR = ROOT_DIR / ".demo-state"
 PREVIEW_LIMIT = 600
@@ -247,7 +249,9 @@ def main() -> None:
     else:
         base_url = os.environ.get("LLM_BASE_URL", "").rstrip("/")
         api_key = os.environ.get("LLM_API_KEY", "")
-        model = os.environ.get("OPENCLAW_LLM_MODEL") or os.environ.get("LLM_MODEL") or "gpt-4o"
+        model = direct_model_name(
+            os.environ.get("OPENCLAW_LLM_MODEL") or os.environ.get("LLM_MODEL")
+        )
         if not base_url or not api_key:
             raise SystemExit("LLM_BASE_URL and LLM_API_KEY must be set.")
         if base_url.endswith("/chat/completions"):
