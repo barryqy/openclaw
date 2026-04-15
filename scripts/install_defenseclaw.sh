@@ -254,7 +254,40 @@ defenseclaw_venv_is_broken() {
     return 0
   fi
 
+  # Some stale lab pods keep a half-upgraded uv env where python works but the
+  # python3 entry point is gone, which makes later uv calls fail.
+  if [ ! -x ".venv/bin/python3" ]; then
+    return 0
+  fi
+
+  if ! ".venv/bin/python3" -V >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ ! -f ".venv/pyvenv.cfg" ]; then
+    return 0
+  fi
+
   return 1
+}
+
+build_defenseclaw_venv() {
+  local rebuilt_once=0
+
+  while true; do
+    if uv venv .venv --python "${UV_PYTHON_BIN}" &&
+      uv pip install -e . --python .venv/bin/python; then
+      return 0
+    fi
+
+    if [ "${rebuilt_once}" -eq 1 ]; then
+      return 1
+    fi
+
+    echo "Rebuilding DefenseClaw virtual environment after uv setup failure..."
+    rm -rf .venv
+    rebuilt_once=1
+  done
 }
 
 defenseclaw_repo_looks_legacy() {
@@ -730,8 +763,7 @@ if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; the
 fi
 
 echo "[4/6] Building the DefenseClaw Python environment..."
-uv venv .venv --python "${UV_PYTHON_BIN}"
-uv pip install -e . --python .venv/bin/python
+build_defenseclaw_venv
 export npm_config_audit=false
 export npm_config_fund=false
 export npm_config_update_notifier=false
