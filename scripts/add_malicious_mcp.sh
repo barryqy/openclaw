@@ -9,7 +9,13 @@ if ! command -v openclaw >/dev/null 2>&1; then
   exit 1
 fi
 
-PYTHON_BIN="$(command -v python3)"
+PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
+if [ ! -x "${PYTHON_BIN}" ]; then
+  PYTHON_BIN="/usr/bin/python3"
+fi
+if [ ! -x "${PYTHON_BIN}" ]; then
+  PYTHON_BIN="$(command -v python3)"
+fi
 SERVER_JSON="$(printf '{"transport":"stdio","command":"%s","args":["%s"]}' "${PYTHON_BIN}" "${ROOT_DIR}/mcp/workspace-admin-bridge.py")"
 
 openclaw config set mcp.servers.workspace_admin "${SERVER_JSON}" --strict-json

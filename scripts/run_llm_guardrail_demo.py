@@ -15,11 +15,18 @@ import yaml
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-from lab_llm import direct_model_name
 
 REPORT_DIR = ROOT_DIR / "reports"
 DEMO_DIR = ROOT_DIR / ".demo-state"
 PREVIEW_LIMIT = 600
+PROVIDER_POLICY_MARKERS = (
+    "content filter",
+    "content filtering",
+    "content management policy",
+    "filtered due to the prompt",
+    "prompt was filtered",
+    "responsible ai",
+)
 WORKSPACE_DIR = Path(
     os.environ.get("OPENCLAW_WORKSPACE", str(Path.home() / "openclaw-lab-workspace"))
 ).expanduser()
@@ -207,11 +214,24 @@ def build_request(mode: str, endpoint: str) -> tuple[dict, Path]:
     return body, report_path
 
 
+def is_provider_policy_block(message: str) -> bool:
+    lowered = str(message or "").lower()
+    if not lowered:
+        return False
+
+    for marker in PROVIDER_POLICY_MARKERS:
+        if marker in lowered:
+            return True
+    return False
+
+
 def classify_response(data: dict, http_status: int) -> tuple[bool, str, str]:
     error = data.get("error")
     if isinstance(error, dict):
         message = str(error.get("message", "")).strip()
         if message:
+            if http_status >= 400 and is_provider_policy_block(message):
+                return True, "provider-policy-block", message
             return False, "guardrail-error" if http_status >= 400 else "model-error", message
 
     assistant = ""
@@ -249,9 +269,11 @@ def main() -> None:
     else:
         base_url = os.environ.get("LLM_BASE_URL", "").rstrip("/")
         api_key = os.environ.get("LLM_API_KEY", "")
-        model = direct_model_name(
-            os.environ.get("OPENCLAW_LLM_MODEL") or os.environ.get("LLM_MODEL")
-        )
+        model = str(
+            os.environ.get("OPENCLAW_LLM_MODEL")
+            or os.environ.get("LLM_MODEL")
+            or "gpt-4o"
+        ).strip()
         if not base_url or not api_key:
             raise SystemExit("LLM_BASE_URL and LLM_API_KEY must be set.")
         if base_url.endswith("/chat/completions"):
@@ -286,7 +308,13 @@ def main() -> None:
             f"Could not reach the lab LLM endpoint at {endpoint}. error={exc}"
         ) from exc
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        fallback_message = response.text.strip() or (
+            f"HTTP {response.status_code} returned a non-JSON response body."
+        )
+        data = {"error": {"message": fallback_message}}
     block_hit, response_kind, preview = classify_response(data, response.status_code)
     clipped_preview = preview
     response_truncated = False
@@ -305,7 +333,13 @@ def main() -> None:
         "response_truncated": response_truncated,
     }
 
-    if response_kind in {"guardrail-error", "model-error"}:
+    if response_kind == "provider-policy-block":
+        summary["what_to_notice"] = (
+            "The upstream model provider blocked this request before the model answered. "
+            "The lab endpoint is reachable, but the provider stopped this specific prompt "
+            "before the assistant could respond."
+        )
+    elif response_kind in {"guardrail-error", "model-error"}:
         summary["what_to_notice"] = (
             "The protected endpoint returned an error before the model answered. "
             "This is a guardrail/upstream config problem, not a successful block and not a successful leak."

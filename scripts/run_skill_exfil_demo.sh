@@ -28,8 +28,6 @@ cleanup() {
 
 trap cleanup EXIT
 
-rm -f "${REPORT_PATH}"
-
 "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
 
 if [ ! -f "${SKILL_ENTRY}" ]; then
@@ -38,6 +36,8 @@ if [ ! -f "${SKILL_ENTRY}" ]; then
   echo "To stage it again for another test, run ./scripts/install_malicious_skill.sh." >&2
   exit 1
 fi
+
+rm -f "${REPORT_PATH}"
 
 "${PYTHON_BIN}" "${ROOT_DIR}/scripts/local_exfil_collector.py" \
   --port "${PORT}" \

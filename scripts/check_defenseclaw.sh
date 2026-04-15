@@ -40,6 +40,22 @@ except Exception:
 PY
 }
 
+wait_for_http_ok() {
+  local url="$1"
+  local attempts="${2:-1}"
+  local idx=0
+
+  while [ "${idx}" -lt "${attempts}" ]; do
+    if http_ok "${url}"; then
+      return 0
+    fi
+    idx=$((idx + 1))
+    sleep 1
+  done
+
+  return 1
+}
+
 read_guardrail_port() {
   "${DC_PYTHON}" - "${DC_CFG_PATH}" <<'PY'
 from pathlib import Path
@@ -51,6 +67,30 @@ cfg_path = Path(sys.argv[1])
 cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
 guardrail = cfg.get("guardrail", {}) or {}
 print(int(guardrail.get("port", 4000) or 4000))
+PY
+}
+
+guardrail_is_configured() {
+  if [ ! -f "${DC_CFG_PATH}" ]; then
+    return 1
+  fi
+
+  "${DC_PYTHON}" - "${DC_CFG_PATH}" <<'PY' >/dev/null 2>&1
+from pathlib import Path
+import sys
+
+import yaml
+
+cfg_path = Path(sys.argv[1])
+cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+guardrail = cfg.get("guardrail", {}) or {}
+
+enabled = bool(guardrail.get("enabled", False))
+model = str(guardrail.get("model", "") or "").strip()
+model_name = str(guardrail.get("model_name", "") or "").strip()
+api_base = str(guardrail.get("api_base", "") or "").strip()
+
+raise SystemExit(0 if enabled and model and model_name and api_base else 1)
 PY
 }
 
@@ -72,13 +112,23 @@ print(f"DEFENSECLAW_CLI={repo_dir / '.venv' / 'bin' / 'defenseclaw'}")
 if cfg_path.exists():
     cfg = yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
     guardrail = cfg.get("guardrail", {}) or {}
-    print(f"GUARDRAIL_STATUS={'configured' if guardrail else 'not-configured-yet'}")
-    print(f"GUARDRAIL_ENABLED={str(bool(guardrail.get('enabled', False))).lower()}")
-    print(f"GUARDRAIL_MODE={guardrail.get('mode', '')}")
-    print(f"GUARDRAIL_SCANNER_MODE={guardrail.get('scanner_mode', '')}")
-    print(f"GUARDRAIL_MODEL={guardrail.get('model', '')}")
-    print(f"GUARDRAIL_MODEL_NAME={guardrail.get('model_name', '')}")
-    print(f"GUARDRAIL_API_BASE={guardrail.get('api_base', '')}")
+    enabled = bool(guardrail.get("enabled", False))
+    model = str(guardrail.get("model", "") or "").strip()
+    model_name = str(guardrail.get("model_name", "") or "").strip()
+    api_base = str(guardrail.get("api_base", "") or "").strip()
+    configured = enabled and model and model_name and api_base
+
+    if configured:
+        print("GUARDRAIL_STATUS=configured")
+        print("GUARDRAIL_ENABLED=true")
+        print(f"GUARDRAIL_MODE={guardrail.get('mode', '')}")
+        print(f"GUARDRAIL_SCANNER_MODE={guardrail.get('scanner_mode', '')}")
+        print(f"GUARDRAIL_MODEL={model}")
+        print(f"GUARDRAIL_MODEL_NAME={model_name}")
+        print(f"GUARDRAIL_API_BASE={api_base}")
+    else:
+        print("GUARDRAIL_STATUS=not-configured-yet")
+        print("NEXT_STEP=./scripts/configure_defenseclaw.sh")
 else:
     print("GUARDRAIL_STATUS=not-configured-yet")
     print("NEXT_STEP=./scripts/configure_defenseclaw.sh")
@@ -130,7 +180,7 @@ fi
 
 print_defenseclaw_summary
 
-if http_ok "${OPENCLAW_GATEWAY_URL}"; then
+if wait_for_http_ok "${OPENCLAW_GATEWAY_URL}" 20; then
   echo "OPENCLAW_GATEWAY=healthy"
 else
   echo "OPENCLAW_GATEWAY=unreachable" >&2
@@ -138,7 +188,7 @@ else
   exit 1
 fi
 
-if [ ! -f "${DC_CFG_PATH}" ]; then
+if ! guardrail_is_configured; then
   exit 0
 fi
 
@@ -146,7 +196,7 @@ guardrail_port="$(read_guardrail_port)"
 guardrail_url="http://127.0.0.1:${guardrail_port}/health/liveliness"
 echo "GUARDRAIL_HEALTH_URL=${guardrail_url}"
 
-if http_ok "${guardrail_url}"; then
+if wait_for_http_ok "${guardrail_url}" 20; then
   echo "GUARDRAIL_HEALTH=healthy"
 else
   echo "GUARDRAIL_HEALTH=unreachable" >&2

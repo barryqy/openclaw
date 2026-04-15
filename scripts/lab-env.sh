@@ -2,9 +2,6 @@
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck disable=SC1091
-source "${ROOT_DIR}/scripts/model-routing.sh"
-
 derive_lab_llm_api_base() {
   local raw_url="${1:-}"
 
@@ -22,8 +19,6 @@ derive_lab_llm_api_base() {
       ;;
   esac
 }
-
-lab_llm_export_variants "${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
 
 export OPENCLAW_ROOT="${ROOT_DIR}"
 export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
@@ -44,7 +39,7 @@ export OPENCLAW_GATEWAY_HOST="${OPENCLAW_GATEWAY_HOST:-127.0.0.1}"
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
 export OPENCLAW_GATEWAY_PID_FILE="${OPENCLAW_GATEWAY_PID_FILE:-${OPENCLAW_STATE_DIR}/lab-gateway.pid}"
 export OPENCLAW_GATEWAY_LOG_FILE="${OPENCLAW_GATEWAY_LOG_FILE:-${OPENCLAW_STATE_DIR}/lab-gateway.log}"
-export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LAB_LLM_DIRECT_MODEL}}"
+export OPENCLAW_LLM_MODEL="${OPENCLAW_LLM_MODEL:-${LLM_MODEL:-gpt-4o}}"
 export OPENCLAW_CUSTOM_PROVIDER_ID="${OPENCLAW_CUSTOM_PROVIDER_ID:-llm-image}"
 export DEFENSECLAW_DIR="${DEFENSECLAW_DIR:-/home/developer/src/defenseclaw}"
 defenseclawRepo="${DEFENSECLAW_REPO:-${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw.git}}"
@@ -79,7 +74,7 @@ if [ -z "${SKILL_SCANNER_LLM_BASE_URL:-}" ] && [ -n "${LLM_BASE_URL:-}" ]; then
 fi
 
 if [ -n "${SKILL_SCANNER_LLM_API_KEY:-}" ] && [ -n "${SKILL_SCANNER_LLM_BASE_URL:-}" ] && [ -z "${SKILL_SCANNER_LLM_MODEL:-}" ]; then
-  export SKILL_SCANNER_LLM_MODEL="${LAB_LLM_LITELLM_MODEL}"
+  export SKILL_SCANNER_LLM_MODEL="${OPENCLAW_LLM_MODEL}"
 fi
 
 if [ -z "${MCP_SCANNER_LLM_API_KEY:-}" ] && [ -n "${LLM_API_KEY:-}" ]; then
@@ -91,7 +86,7 @@ if [ -z "${MCP_SCANNER_LLM_BASE_URL:-}" ] && [ -n "${LLM_BASE_URL:-}" ]; then
 fi
 
 if [ -n "${MCP_SCANNER_LLM_API_KEY:-}" ] && [ -n "${MCP_SCANNER_LLM_BASE_URL:-}" ] && [ -z "${MCP_SCANNER_LLM_MODEL:-}" ]; then
-  export MCP_SCANNER_LLM_MODEL="${LAB_LLM_LITELLM_MODEL}"
+  export MCP_SCANNER_LLM_MODEL="${OPENCLAW_LLM_MODEL}"
 fi
 
 openclaw_require_llm() {
