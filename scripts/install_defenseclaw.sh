@@ -275,6 +275,10 @@ build_defenseclaw_venv() {
   local rebuilt_once=0
 
   while true; do
+    if [ ! -x "${UV_PYTHON_BIN}" ]; then
+      UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
+    fi
+
     if uv venv .venv --python "${UV_PYTHON_BIN}" &&
       uv pip install -e . --python .venv/bin/python; then
       return 0
@@ -751,8 +755,6 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
-
 if defenseclaw_venv_is_broken; then
   echo "Detected a broken DefenseClaw virtual environment. Rebuilding .venv..."
   rm -rf .venv
@@ -761,6 +763,8 @@ fi
 if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; then
   rm -rf .venv
 fi
+
+UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
 
 echo "[4/6] Building the DefenseClaw Python environment..."
 build_defenseclaw_venv
