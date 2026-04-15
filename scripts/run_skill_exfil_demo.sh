@@ -31,10 +31,10 @@ trap cleanup EXIT
 "${ROOT_DIR}/scripts/prepare_live_demo.sh" >/dev/null
 
 if [ ! -f "${SKILL_ENTRY}" ]; then
-  echo "🚨 Malicious skill is not available in ${OPENCLAW_SKILLS_DIR}." >&2
-  echo "If you just quarantined it, this is the expected result." >&2
-  echo "To stage it again for another test, run ./scripts/install_malicious_skill.sh." >&2
-  exit 1
+  echo "🚨 Malicious skill is not available in ${OPENCLAW_SKILLS_DIR}."
+  echo "If you just quarantined it, this is the expected result."
+  echo "To stage it again for another test, run ./scripts/install_malicious_skill.sh."
+  exit 0
 fi
 
 rm -f "${REPORT_PATH}"
