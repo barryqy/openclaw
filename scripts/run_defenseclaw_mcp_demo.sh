@@ -7,10 +7,14 @@ CASE_NAME="${1:-full-replay}"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
 PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-HOST_PYTHON_BIN="/usr/bin/python3"
+HOST_PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
 
 if [ ! -x "${PYTHON_BIN}" ]; then
   PYTHON_BIN="$(command -v python3)"
+fi
+
+if [ ! -x "${HOST_PYTHON_BIN}" ]; then
+  HOST_PYTHON_BIN="/usr/bin/python3"
 fi
 
 if [ ! -x "${HOST_PYTHON_BIN}" ]; then
@@ -101,6 +105,12 @@ set_safe_reference_with_fallback() {
   if printf '%s' "${output}" | grep -Eq 'Status:[[:space:]]+CLEAN' &&
      printf '%s' "${output}" | grep -Eq 'TimeoutExpired|timed out after [0-9]+ seconds'; then
     echo "DefenseClaw scan passed, but the OpenClaw config write timed out. Applying the lab MCP fallback..."
+    bash "${ROOT_DIR}/scripts/add_safe_mcp.sh"
+    return 0
+  fi
+
+  if printf '%s' "${output}" | grep -Eq 'fastmcp is required|Unable to connect to stdio MCP server|Connection closed'; then
+    echo "DefenseClaw safe MCP scan failed with the host Python. Applying the lab MCP fallback..."
     bash "${ROOT_DIR}/scripts/add_safe_mcp.sh"
     return 0
   fi
