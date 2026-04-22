@@ -158,6 +158,8 @@ openclaw_require_llm
 
 ensure_node_runtime
 
+echo "OpenClaw CLI pin: ${OPENCLAW_NPM_VERSION}"
+
 export OPENAI_API_KEY="${OPENAI_API_KEY:-${LLM_API_KEY}}"
 export OPENAI_BASE_URL="${OPENAI_BASE_URL:-${OPENCLAW_LLM_API_BASE}}"
 

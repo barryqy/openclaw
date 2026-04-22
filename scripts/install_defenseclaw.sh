@@ -715,6 +715,7 @@ PY
 }
 
 echo "[1/6] Preparing the DefenseClaw repo..."
+echo "DefenseClaw ref pin: ${DEFENSECLAW_REF}"
 ensure_defenseclaw_repo
 
 cd "${DEFENSECLAW_DIR}"
