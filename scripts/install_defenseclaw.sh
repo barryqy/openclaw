@@ -298,11 +298,28 @@ defenseclaw_repo_looks_legacy() {
   [ ! -f "${DEFENSECLAW_DIR}/internal/gateway/proxy.go" ]
 }
 
+sync_defenseclaw_repo_ref() {
+  local target_ref="${DEFENSECLAW_REF:-main}"
+  local current_branch=""
+
+  git -C "${DEFENSECLAW_DIR}" fetch origin
+
+  if [ -z "${target_ref}" ] || [ "${target_ref}" = "main" ]; then
+    current_branch="$(git -C "${DEFENSECLAW_DIR}" branch --show-current 2>/dev/null || true)"
+    if [ -n "${current_branch}" ] && [ "${current_branch}" != "main" ]; then
+      git -C "${DEFENSECLAW_DIR}" checkout main
+    fi
+    git -C "${DEFENSECLAW_DIR}" pull --ff-only origin main
+    return 0
+  fi
+
+  git -C "${DEFENSECLAW_DIR}" checkout --detach "${target_ref}"
+}
+
 ensure_defenseclaw_repo() {
   local repo_parent
   local current_remote=""
   local backup_dir=""
-  local current_branch=""
 
   repo_parent="$(dirname "${DEFENSECLAW_DIR}")"
   mkdir -p "${repo_parent}"
@@ -310,6 +327,7 @@ ensure_defenseclaw_repo() {
   if [ ! -d "${DEFENSECLAW_DIR}" ]; then
     echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
     git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
+    sync_defenseclaw_repo_ref
     return 0
   fi
 
@@ -331,6 +349,7 @@ ensure_defenseclaw_repo() {
     mv "${DEFENSECLAW_DIR}" "${backup_dir}"
     echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
     git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
+    sync_defenseclaw_repo_ref
     return 0
   fi
 
@@ -339,12 +358,7 @@ ensure_defenseclaw_repo() {
     return 0
   fi
 
-  git -C "${DEFENSECLAW_DIR}" fetch origin
-  current_branch="$(git -C "${DEFENSECLAW_DIR}" branch --show-current 2>/dev/null || true)"
-  if [ -n "${current_branch}" ] && [ "${current_branch}" != "main" ]; then
-    git -C "${DEFENSECLAW_DIR}" checkout main
-  fi
-  git -C "${DEFENSECLAW_DIR}" pull --ff-only origin main
+  sync_defenseclaw_repo_ref
 }
 
 patch_defenseclaw_guardrail_api_base() {
@@ -424,7 +438,11 @@ def patch_proxy_provider_wiring(text: str) -> str:
         "\treturn provider\n"
     )
     current_new = (
-        "provider := NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)\n"
+        "provider, err := NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)\n"
+        "\tif err != nil {\n"
+        '\t\tfmt.Fprintf(os.Stderr, "[guardrail] failed to create provider for %q: %v\\n", cfgModel, err)\n'
+        "\t\treturn nil\n"
+        "\t}\n"
         "\treturn provider\n"
     )
 
@@ -434,7 +452,12 @@ def patch_proxy_provider_wiring(text: str) -> str:
         '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
         "\t}\n"
     )
-    legacy_new = "provider := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n"
+    legacy_new = (
+        "provider, err := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n"
+        "\tif err != nil {\n"
+        '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
+        "\t}\n"
+    )
 
     if current_old in text:
         return text.replace(current_old, current_new, 1)
@@ -453,6 +476,11 @@ def pick_openai_provider_file() -> Path:
 def patch_openai_provider_file(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     if "openAIChatCompletionURLs(" in text:
+        return
+
+    # Newer DefenseClaw builds use the Bifrost-backed provider layer in
+    # provider.go, so there is no dedicated OpenAI helper block to patch.
+    if "type openaiProvider struct {" not in text and "func NewProviderWithBase(" in text:
         return
 
     text = replace_once(
@@ -619,6 +647,7 @@ PY
 patch_defenseclaw_lab_privacy_guardrail() {
   python3 - "${DEFENSECLAW_DIR}" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 
@@ -647,86 +676,35 @@ func containsAnyPattern(text string, patterns []string) bool {
 """
 
 if "var requestVerbs = []string{" not in text:
-    anchor = """var exfilPatterns = []string{
-\t"/etc/passwd", "/etc/shadow", "base64 -d", "base64 --decode",
-\t"exfiltrate", "send to my server", "curl http",
-}
-
-"""
-    if anchor not in text:
+    anchor = re.search(r"(var exfilPatterns = \[]string\{\n(?:.*\n)*?\}\n\n)", text)
+    if not anchor:
         raise SystemExit("Could not find exfilPatterns block while patching DefenseClaw for the lab.")
-    text = text.replace(anchor, anchor + request_verbs_block, 1)
-
-severity_block = """\tif severity == "MEDIUM" {
-\t\tfor _, p := range exfilPatterns {
-\t\t\tfor _, f := range flags {
-\t\t\t\tif f == p {
-\t\t\t\t\tseverity = "HIGH"
-\t\t\t\t\tbreak
-\t\t\t\t}
-\t\t\t}
-\t\t\tif severity == "HIGH" {
-\t\t\t\tbreak
-\t\t\t}
-\t\t}
-\t}
-
-\tif direction == "prompt" && severity == "MEDIUM" &&
-\t\tcontainsAnyPattern(lower, requestVerbs) &&
-\t\tcontainsAnyPattern(lower, privacyTargets) {
-\t\tseverity = "HIGH"
-\t\tflags = append(flags, "privacy-exfil-request")
-\t}
-
-\taction := "alert"
-"""
-
-old_block = """\tif severity == "MEDIUM" {
-\t\tfor _, p := range exfilPatterns {
-\t\t\tfor _, f := range flags {
-\t\t\t\tif f == p {
-\t\t\t\t\tseverity = "HIGH"
-\t\t\t\t\tbreak
-\t\t\t\t}
-\t\t\t}
-\t\t\tif severity == "HIGH" {
-\t\t\t\tbreak
-\t\t\t}
-\t\t}
-\t}
-
-\taction := "alert"
-"""
+    text = text[:anchor.end()] + request_verbs_block + text[anchor.end():]
 
 if 'flags = append(flags, "privacy-exfil-request")' not in text:
-    new_shape = """\tseverity := "MEDIUM"
-\tif isHigh {
-\t\tseverity = "HIGH"
-\t}
-
-\taction := "alert"
-"""
-    new_shape_with_privacy = """\tseverity := "MEDIUM"
-\tif isHigh {
-\t\tseverity = "HIGH"
-\t}
-
-\tif direction == "prompt" && severity == "MEDIUM" &&
+    privacy_block = """\tif direction == "prompt" && severity == "MEDIUM" &&
 \t\tcontainsAnyPattern(lower, requestVerbs) &&
 \t\tcontainsAnyPattern(lower, privacyTargets) {
 \t\tseverity = "HIGH"
 \t\tflags = append(flags, "privacy-exfil-request")
 \t}
 
-\taction := "alert"
 """
 
-    if new_shape in text:
-        text = text.replace(new_shape, new_shape_with_privacy, 1)
-    elif old_block in text:
-        text = text.replace(old_block, severity_block, 1)
-    else:
+    scan_local = re.search(
+        r"(func scanLocalPatterns\(direction, content string\) \*ScanVerdict \{\n)(?P<body>.*?)(\n\})",
+        text,
+        re.S,
+    )
+    if not scan_local:
+        raise SystemExit("Could not find scanLocalPatterns while patching DefenseClaw for the lab.")
+
+    body = scan_local.group("body")
+    action_anchor = '\taction := "alert"\n'
+    if action_anchor not in body:
         raise SystemExit("Could not find guardrail severity block while patching DefenseClaw for the lab.")
+    body = body.replace(action_anchor, privacy_block + action_anchor, 1)
+    text = text[:scan_local.start()] + scan_local.group(1) + body + scan_local.group(3) + text[scan_local.end():]
 
 guardrail_go.write_text(text, encoding="utf-8")
 PY
@@ -793,4 +771,9 @@ echo "[6/6] Installing scanner packages and initializing DefenseClaw..."
 ensure_lab_scanners
 defenseclaw init --skip-install
 defenseclaw policy activate strict
+
+# Keep the lab flow honest: install prepares DefenseClaw, but Module 6
+# should not read as "configured" until configure_defenseclaw.sh finishes.
+rm -f "${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
+
 defenseclaw status

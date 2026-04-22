@@ -258,4 +258,7 @@ fi
 echo "[5/5] Reconnecting the OpenClaw gateway through the guarded path..."
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" stop >/dev/null 2>&1 || true
 bash "${ROOT_DIR}/scripts/manage_openclaw_gateway.sh" ensure
+
+mkdir -p "$(dirname "${DEFENSECLAW_CONFIGURED_MARKER_FILE}")"
+touch "${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
 defenseclaw status

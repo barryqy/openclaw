@@ -10,6 +10,7 @@ DC_VENV_DIR="${DEFENSECLAW_DIR}/.venv"
 DC_PYTHON="${DC_VENV_DIR}/bin/python"
 DC_CLI="${DC_VENV_DIR}/bin/defenseclaw"
 DC_CFG_PATH="${HOME}/.defenseclaw/config.yaml"
+DC_MARKER_PATH="${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
 DC_GUARDRAIL_SRC="${DEFENSECLAW_DIR}/internal/gateway/guardrail.go"
 OPENCLAW_GATEWAY_URL="http://${OPENCLAW_GATEWAY_HOST}:${OPENCLAW_GATEWAY_PORT}/health"
 
@@ -94,8 +95,13 @@ raise SystemExit(0 if enabled and model and model_name and api_base else 1)
 PY
 }
 
+lab_guardrail_is_configured() {
+  [ -f "${DC_MARKER_PATH}" ] || return 1
+  guardrail_is_configured
+}
+
 print_defenseclaw_summary() {
-  "${DC_PYTHON}" - "${DEFENSECLAW_DIR}" "${DC_CFG_PATH}" "${DC_GUARDRAIL_SRC}" <<'PY'
+  "${DC_PYTHON}" - "${DEFENSECLAW_DIR}" "${DC_CFG_PATH}" "${DC_MARKER_PATH}" "${DC_GUARDRAIL_SRC}" <<'PY'
 from pathlib import Path
 import sys
 
@@ -103,7 +109,8 @@ import yaml
 
 repo_dir = Path(sys.argv[1])
 cfg_path = Path(sys.argv[2])
-guardrail_src = Path(sys.argv[3])
+marker_path = Path(sys.argv[3])
+guardrail_src = Path(sys.argv[4])
 
 print(f"DEFENSECLAW_DIR={repo_dir}")
 print(f"DEFENSECLAW_VENV={repo_dir / '.venv'}")
@@ -116,7 +123,7 @@ if cfg_path.exists():
     model = str(guardrail.get("model", "") or "").strip()
     model_name = str(guardrail.get("model_name", "") or "").strip()
     api_base = str(guardrail.get("api_base", "") or "").strip()
-    configured = enabled and model and model_name and api_base
+    configured = marker_path.exists() and enabled and model and model_name and api_base
 
     if configured:
         print("GUARDRAIL_STATUS=configured")
@@ -188,7 +195,7 @@ else
   exit 1
 fi
 
-if ! guardrail_is_configured; then
+if ! lab_guardrail_is_configured; then
   exit 0
 fi
 
