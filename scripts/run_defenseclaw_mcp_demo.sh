@@ -7,18 +7,15 @@ CASE_NAME="${1:-full-replay}"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
 PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-HOST_PYTHON_BIN="/usr/bin/python3"
 
 if [ ! -x "${PYTHON_BIN}" ]; then
   PYTHON_BIN="$(command -v python3)"
 fi
 
-if [ ! -x "${HOST_PYTHON_BIN}" ]; then
-  HOST_PYTHON_BIN="$(command -v python3)"
-fi
+HOST_PYTHON_BIN="${OPENCLAW_MCP_PYTHON_BIN:-${PYTHON_BIN}}"
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-  echo "DefenseClaw repo not found at ${DEFENSECLAW_DIR}." >&2
+  echo "DefenseClaw install directory not found at ${DEFENSECLAW_DIR}." >&2
   exit 1
 fi
 

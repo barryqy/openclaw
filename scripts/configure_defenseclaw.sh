@@ -14,7 +14,7 @@ if [ -z "${OPENCLAW_LLM_API_BASE:-}" ]; then
 fi
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-  echo "DefenseClaw repo not found at ${DEFENSECLAW_DIR}." >&2
+  echo "DefenseClaw install directory not found at ${DEFENSECLAW_DIR}." >&2
   echo "Run ./scripts/install_defenseclaw.sh first." >&2
   exit 1
 fi
@@ -110,26 +110,59 @@ if current_model.startswith("litellm/") and cfg.guardrail.original_model:
     current_model = cfg.guardrail.original_model
 
 model_id = current_model.split("/", 1)[1] if "/" in current_model else current_model
-guardrail_model = current_model
+guardrail_model = current_model if "/" in current_model else f"{provider}/{model_id}".strip("/")
 
-if provider == "llm-image" or "/" not in current_model:
-    # The lab LLM is OpenAI-compatible, so map the custom OpenClaw provider
-    # into a LiteLLM upstream that understands api_base.
-    guardrail_model = f"openai/{model_id}"
+known_litellm_providers = {
+    "anthropic",
+    "azure",
+    "bedrock",
+    "cerebras",
+    "cohere",
+    "deepseek",
+    "fireworks_ai",
+    "gemini",
+    "groq",
+    "huggingface",
+    "lm_studio",
+    "local",
+    "mistral",
+    "ollama",
+    "openai",
+    "openrouter",
+    "perplexity",
+    "replicate",
+    "together_ai",
+    "vertex_ai",
+    "vllm",
+    "xai",
+}
+scanner_provider = provider or (guardrail_model.split("/", 1)[0] if "/" in guardrail_model else "")
+scanner_model = guardrail_model
+if scanner_provider not in known_litellm_providers:
+    scanner_provider = "openai"
+    scanner_model = f"openai/{model_id}"
 
 cfg.guardrail.enabled = True
 cfg.guardrail.mode = "action"
 cfg.guardrail.scanner_mode = "local"
-cfg.guardrail.model = guardrail_model
+cfg.llm.provider = scanner_provider
+cfg.llm.model = scanner_model
+cfg.llm.api_key_env = "LLM_API_KEY"
+cfg.llm.base_url = os.environ.get("OPENCLAW_LLM_API_BASE", "")
+cfg.guardrail.llm.provider = provider or (guardrail_model.split("/", 1)[0] if "/" in guardrail_model else "")
+cfg.guardrail.llm.model = guardrail_model
+cfg.guardrail.llm.api_key_env = cfg.llm.api_key_env
+cfg.guardrail.llm.base_url = cfg.llm.base_url
+cfg.guardrail.model = ""
 cfg.guardrail.model_name = model_id
-cfg.guardrail.api_base = os.environ.get("OPENCLAW_LLM_API_BASE", "")
 cfg.guardrail.original_model = cfg.guardrail.original_model or current_model
-cfg.guardrail.api_key_env = "LLM_API_KEY"
+cfg.guardrail.api_base = ""
+cfg.guardrail.api_key_env = ""
 cfg.save()
 
 print(
     f"Configured guardrail for {cfg.guardrail.original_model} "
-    f"via {cfg.guardrail.model} -> {cfg.guardrail.model_name}"
+    f"via {cfg.guardrail.llm.model} -> {cfg.guardrail.model_name}"
 )
 PY
 
@@ -172,8 +205,13 @@ env_path = dc_dir / ".env"
 
 cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
 guardrail_cfg = cfg.get("guardrail", {})
+top_llm = cfg.setdefault("llm", {})
+guardrail_llm = guardrail_cfg.setdefault("llm", {})
 model_name = str(guardrail_cfg.get("model_name", "")).strip()
-upstream_model = str(guardrail_cfg.get("model", "")).strip()
+upstream_model = str(
+    guardrail_llm.get("model", "") or top_llm.get("model", "") or guardrail_cfg.get("model", "")
+).strip()
+provider = str(guardrail_llm.get("provider", "") or top_llm.get("provider", "")).strip()
 litellm_cfg = {}
 entry_model_name = ""
 entry_upstream_model = ""
@@ -201,10 +239,53 @@ guardrail_cfg["enabled"] = True
 guardrail_cfg["mode"] = "action"
 guardrail_cfg["scanner_mode"] = "local"
 guardrail_cfg["model_name"] = model_name
-guardrail_cfg["model"] = upstream_model
-guardrail_cfg["api_base"] = os.environ.get("OPENCLAW_LLM_API_BASE", "")
-guardrail_cfg["api_key_env"] = "LLM_API_KEY"
+guardrail_cfg["model"] = ""
+guardrail_cfg["api_base"] = ""
+guardrail_cfg["api_key_env"] = ""
+known_litellm_providers = {
+    "anthropic",
+    "azure",
+    "bedrock",
+    "cerebras",
+    "cohere",
+    "deepseek",
+    "fireworks_ai",
+    "gemini",
+    "groq",
+    "huggingface",
+    "lm_studio",
+    "local",
+    "mistral",
+    "ollama",
+    "openai",
+    "openrouter",
+    "perplexity",
+    "replicate",
+    "together_ai",
+    "vertex_ai",
+    "vllm",
+    "xai",
+}
+scanner_provider = provider or (upstream_model.split("/", 1)[0] if "/" in upstream_model else "")
+scanner_model = upstream_model
+if scanner_provider not in known_litellm_providers:
+    scanner_provider = "openai"
+    scanner_model = f"openai/{model_name}"
+
+top_llm["provider"] = scanner_provider
+top_llm["model"] = scanner_model
+top_llm["api_key_env"] = "LLM_API_KEY"
+top_llm["base_url"] = os.environ.get("OPENCLAW_LLM_API_BASE", "")
+top_llm["timeout"] = int(top_llm.get("timeout") or 30)
+top_llm["max_retries"] = int(top_llm.get("max_retries") or 2)
+guardrail_llm["provider"] = provider or (upstream_model.split("/", 1)[0] if "/" in upstream_model else "")
+guardrail_llm["model"] = upstream_model
+guardrail_llm["api_key_env"] = top_llm["api_key_env"]
+guardrail_llm["base_url"] = top_llm["base_url"]
+guardrail_llm["timeout"] = top_llm["timeout"]
+guardrail_llm["max_retries"] = top_llm["max_retries"]
 cfg["guardrail"] = guardrail_cfg
+cfg["llm"] = top_llm
 cfg_path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False), encoding="utf-8")
 
 if litellm_cfg:

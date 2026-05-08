@@ -6,6 +6,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
 
+DC_VENV_DIR="${DEFENSECLAW_DIR}/.venv"
+DC_PYTHON="${DC_VENV_DIR}/bin/python"
+DC_CLI="${DC_VENV_DIR}/bin/defenseclaw"
+
 download_file() {
   local url="$1"
   local out_file="$2"
@@ -43,6 +47,31 @@ raise SystemExit(0 if sys.version_info >= (min_major, min_minor) else 1)
 PY
 }
 
+ensure_uv_runtime() {
+  local tmpdir
+
+  if command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Installing uv for DefenseClaw..."
+  tmpdir="$(mktemp -d)"
+  download_file "https://astral.sh/uv/install.sh" "${tmpdir}/install-uv.sh"
+  mkdir -p "${HOME}/.local/bin"
+  UV_UNMANAGED_INSTALL="${HOME}/.local/bin" sh "${tmpdir}/install-uv.sh" --quiet
+  rm -rf "${tmpdir}"
+
+  export PATH="${HOME}/.local/bin:${PATH}"
+  hash -r
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "uv was installed, but it is still not on PATH." >&2
+    return 1
+  fi
+
+  echo "uv ready: $(uv --version)"
+}
+
 resolve_defenseclaw_python() {
   local candidate
   local uv_python
@@ -77,124 +106,67 @@ resolve_defenseclaw_python() {
   return 1
 }
 
-go_runtime_ok() {
-  if ! command -v go >/dev/null 2>&1; then
-    return 1
-  fi
+sha256_file() {
+  local path="$1"
 
-  local go_ver
-  local major
-  local minor
-
-  go_ver="$(go version 2>/dev/null | awk '{print $3}')"
-  go_ver="${go_ver#go}"
-
-  if [ -z "${go_ver}" ]; then
-    return 1
-  fi
-
-  IFS=. read -r major minor _ <<<"${go_ver}"
-
-  if [ "${major}" -gt 1 ]; then
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${path}" | awk '{print $1}'
     return 0
   fi
 
-  [ "${minor}" -ge 25 ]
+  shasum -a 256 "${path}" | awk '{print $1}'
 }
 
-install_go_runtime() {
+verify_checksum() {
+  local file_path="$1"
+  local file_name="$2"
+  local checksums_file="$3"
+  local expected
+  local actual
+
+  expected="$(awk -v f="${file_name}" '$2 == f {print $1; exit}' "${checksums_file}")"
+  if [ -z "${expected}" ]; then
+    echo "No checksum entry found for ${file_name}; keeping the downloaded release asset." >&2
+    return 0
+  fi
+
+  actual="$(sha256_file "${file_path}")"
+  if [ "${expected}" != "${actual}" ]; then
+    echo "Checksum mismatch for ${file_name}." >&2
+    echo "Expected: ${expected}" >&2
+    echo "Actual:   ${actual}" >&2
+    return 1
+  fi
+}
+
+detect_release_platform() {
   local os_name
-  local arch
-  local go_os
-  local go_arch
-  local go_ver="1.25.0"
-  local archive_name
-  local install_root
-  local go_bin_dir
-  local tmpdir
+  local arch_name
+  local os_part
+  local arch_part
 
   os_name="$(uname -s)"
-  arch="$(uname -m)"
+  arch_name="$(uname -m)"
 
   case "${os_name}" in
-    Linux) go_os="linux" ;;
-    Darwin) go_os="darwin" ;;
+    Linux) os_part="linux" ;;
+    Darwin) os_part="darwin" ;;
     *)
-      echo "Unsupported operating system for Go bootstrap: ${os_name}" >&2
+      echo "Unsupported DefenseClaw release platform: ${os_name}" >&2
       return 1
       ;;
   esac
 
-  case "${arch}" in
-    x86_64|amd64) go_arch="amd64" ;;
-    aarch64|arm64) go_arch="arm64" ;;
+  case "${arch_name}" in
+    x86_64|amd64) arch_part="amd64" ;;
+    aarch64|arm64) arch_part="arm64" ;;
     *)
-      echo "Unsupported CPU architecture for Go bootstrap: ${arch}" >&2
+      echo "Unsupported DefenseClaw release architecture: ${arch_name}" >&2
       return 1
       ;;
   esac
 
-  archive_name="go${go_ver}.${go_os}-${go_arch}.tar.gz"
-  install_root="${HOME}/.local/share/defenseclaw-go/go${go_ver}-${go_os}-${go_arch}"
-  go_bin_dir="${install_root}/bin"
-
-  if [ ! -x "${go_bin_dir}/go" ]; then
-    echo "Installing Go ${go_ver} for DefenseClaw..."
-    tmpdir="$(mktemp -d)"
-    download_file "https://go.dev/dl/${archive_name}" "${tmpdir}/${archive_name}"
-    mkdir -p "${HOME}/.local/share/defenseclaw-go" "${HOME}/.local/bin"
-    tar -xzf "${tmpdir}/${archive_name}" -C "${tmpdir}"
-    rm -rf "${install_root}"
-    mv "${tmpdir}/go" "${install_root}"
-    rm -rf "${tmpdir}"
-  fi
-
-  mkdir -p "${HOME}/.local/bin"
-  ln -sf "${go_bin_dir}/go" "${HOME}/.local/bin/go"
-  ln -sf "${go_bin_dir}/gofmt" "${HOME}/.local/bin/gofmt"
-  export PATH="${go_bin_dir}:${HOME}/.local/bin:${PATH}"
-  hash -r
-
-  if [ ! -x "${go_bin_dir}/go" ]; then
-    echo "Go bootstrap completed, but the go binary is missing at ${go_bin_dir}/go." >&2
-    return 1
-  fi
-
-  echo "Go ready: $("${go_bin_dir}/go" version)"
-}
-
-ensure_go_runtime() {
-  if go_runtime_ok; then
-    return 0
-  fi
-
-  install_go_runtime
-}
-
-ensure_uv_runtime() {
-  local tmpdir
-
-  if command -v uv >/dev/null 2>&1; then
-    return 0
-  fi
-
-  echo "Installing uv for DefenseClaw..."
-  tmpdir="$(mktemp -d)"
-  download_file "https://astral.sh/uv/install.sh" "${tmpdir}/install-uv.sh"
-  mkdir -p "${HOME}/.local/bin"
-  UV_UNMANAGED_INSTALL="${HOME}/.local/bin" sh "${tmpdir}/install-uv.sh" --quiet
-  rm -rf "${tmpdir}"
-
-  export PATH="${HOME}/.local/bin:${PATH}"
-
-  hash -r
-
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "uv was installed, but it is still not on PATH." >&2
-    return 1
-  fi
-
-  echo "uv ready: $(uv --version)"
+  printf '%s_%s\n' "${os_part}" "${arch_part}"
 }
 
 python_module_available() {
@@ -212,22 +184,22 @@ PY
 ensure_lab_scanners() {
   local missing=()
 
-  if ! python_module_available ".venv/bin/python" "skill_scanner"; then
+  if ! python_module_available "${DC_PYTHON}" "skill_scanner"; then
     missing+=("cisco-ai-skill-scanner")
   fi
 
-  if ! python_module_available ".venv/bin/python" "mcpscanner"; then
-    missing+=("cisco-ai-mcp-scanner")
+  if ! python_module_available "${DC_PYTHON}" "mcpscanner"; then
+    missing+=("cisco-ai-mcp-scanner>=4.3")
   fi
 
   if [ "${#missing[@]}" -eq 0 ]; then
-    echo "DefenseClaw scanner dependencies already available in the lab venv."
+    echo "DefenseClaw scanner dependencies are ready."
     echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
     return 0
   fi
 
   echo "Installing missing DefenseClaw scanner dependencies: ${missing[*]}"
-  uv pip install --python .venv/bin/python "${missing[@]}"
+  uv pip install --python "${DC_PYTHON}" "${missing[@]}"
   echo "Skipping cisco-aibom because this lab does not use AI BOM commands."
 }
 
@@ -241,503 +213,132 @@ stop_running_defenseclaw_gateway() {
   sleep 1
 }
 
-defenseclaw_venv_is_broken() {
-  if [ ! -d ".venv" ]; then
+sync_openclaw_plugin_install() {
+  local staged_plugin_dir="${DEFENSECLAW_INSTALLED_PLUGIN_DIR}"
+  local target_plugin_dir="${OPENCLAW_DEFENSECLAW_PLUGIN_DIR}"
+
+  if [ ! -f "${staged_plugin_dir}/dist/index.js" ]; then
+    echo "DefenseClaw plugin artifact is missing ${staged_plugin_dir}/dist/index.js." >&2
     return 1
   fi
 
-  if [ ! -x ".venv/bin/python" ]; then
-    return 0
+  rm -rf "${target_plugin_dir}"
+  mkdir -p "${target_plugin_dir}"
+
+  cp "${staged_plugin_dir}/package.json" "${target_plugin_dir}/"
+  if [ -f "${staged_plugin_dir}/openclaw.plugin.json" ]; then
+    cp "${staged_plugin_dir}/openclaw.plugin.json" "${target_plugin_dir}/"
+  fi
+  cp -r "${staged_plugin_dir}/dist" "${target_plugin_dir}/"
+
+  if [ -d "${staged_plugin_dir}/node_modules" ]; then
+    cp -r "${staged_plugin_dir}/node_modules" "${target_plugin_dir}/"
   fi
 
-  if ! ".venv/bin/python" -V >/dev/null 2>&1; then
-    return 0
-  fi
-
-  return 1
+  echo "OpenClaw plugin synced: ${target_plugin_dir}"
 }
 
-defenseclaw_repo_looks_legacy() {
-  [ ! -f "${DEFENSECLAW_DIR}/internal/gateway/proxy.go" ]
+download_release_artifacts() {
+  local target_dir="$1"
+  local platform="$2"
+  local gateway_name="defenseclaw_${DEFENSECLAW_VERSION}_${platform}.tar.gz"
+  local wheel_name="defenseclaw-${DEFENSECLAW_VERSION}-py3-none-any.whl"
+  local plugin_name="defenseclaw-plugin-${DEFENSECLAW_VERSION}.tar.gz"
+
+  download_file "${DEFENSECLAW_RELEASE_BASE_URL}/checksums.txt" "${target_dir}/checksums.txt"
+  download_file "${DEFENSECLAW_RELEASE_BASE_URL}/${gateway_name}" "${target_dir}/${gateway_name}"
+  download_file "${DEFENSECLAW_RELEASE_BASE_URL}/${wheel_name}" "${target_dir}/${wheel_name}"
+  download_file "${DEFENSECLAW_RELEASE_BASE_URL}/${plugin_name}" "${target_dir}/${plugin_name}"
+
+  verify_checksum "${target_dir}/${gateway_name}" "${gateway_name}" "${target_dir}/checksums.txt"
+  verify_checksum "${target_dir}/${wheel_name}" "${wheel_name}" "${target_dir}/checksums.txt"
+  verify_checksum "${target_dir}/${plugin_name}" "${plugin_name}" "${target_dir}/checksums.txt"
 }
 
-sync_defenseclaw_repo_ref() {
-  local target_ref="${DEFENSECLAW_REF:-main}"
-  local current_branch=""
+install_gateway_from_artifact() {
+  local target_dir="$1"
+  local platform="$2"
+  local gateway_name="defenseclaw_${DEFENSECLAW_VERSION}_${platform}.tar.gz"
+  local unpack_dir="${target_dir}/gateway"
 
-  git -C "${DEFENSECLAW_DIR}" fetch origin
-
-  if [ -z "${target_ref}" ] || [ "${target_ref}" = "main" ]; then
-    current_branch="$(git -C "${DEFENSECLAW_DIR}" branch --show-current 2>/dev/null || true)"
-    if [ -n "${current_branch}" ] && [ "${current_branch}" != "main" ]; then
-      git -C "${DEFENSECLAW_DIR}" checkout main
-    fi
-    git -C "${DEFENSECLAW_DIR}" pull --ff-only origin main
-    return 0
-  fi
-
-  git -C "${DEFENSECLAW_DIR}" checkout --detach "${target_ref}"
+  mkdir -p "${unpack_dir}" "${HOME}/.local/bin"
+  tar -xzf "${target_dir}/${gateway_name}" -C "${unpack_dir}"
+  install -m 0755 "${unpack_dir}/defenseclaw" "${HOME}/.local/bin/defenseclaw-gateway"
+  hash -r
+  echo "DefenseClaw gateway installed: ${HOME}/.local/bin/defenseclaw-gateway"
 }
 
-ensure_defenseclaw_repo() {
-  local repo_parent
-  local current_remote=""
-  local backup_dir=""
+install_cli_from_wheel() {
+  local target_dir="$1"
+  local python_bin="$2"
+  local wheel_name="defenseclaw-${DEFENSECLAW_VERSION}-py3-none-any.whl"
 
-  repo_parent="$(dirname "${DEFENSECLAW_DIR}")"
-  mkdir -p "${repo_parent}"
+  mkdir -p "${DEFENSECLAW_DIR}"
 
-  if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-    echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
-    git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
-    sync_defenseclaw_repo_ref
-    return 0
+  if [ -x "${DC_PYTHON}" ] && ! python_version_ok "${DC_PYTHON}" 3 11; then
+    echo "Detected an older DefenseClaw virtual environment. Rebuilding .venv..."
+    rm -rf "${DC_VENV_DIR}"
   fi
 
-  if [ ! -d "${DEFENSECLAW_DIR}/.git" ]; then
-    echo "Existing ${DEFENSECLAW_DIR} is not a git checkout." >&2
-    echo "Move it aside and rerun the install helper." >&2
-    return 1
-  fi
-
-  current_remote="$(git -C "${DEFENSECLAW_DIR}" remote get-url origin 2>/dev/null || true)"
-  if [ "${current_remote}" != "${DEFENSECLAW_REPO}" ]; then
-    git -C "${DEFENSECLAW_DIR}" remote set-url origin "${DEFENSECLAW_REPO}" || true
-  fi
-
-  if defenseclaw_repo_looks_legacy; then
-    backup_dir="${DEFENSECLAW_DIR}.legacy-backup-$(date +%Y%m%d-%H%M%S)"
-    echo "Detected an older DefenseClaw checkout without the built-in guardrail proxy."
-    echo "Moving it to ${backup_dir}"
-    mv "${DEFENSECLAW_DIR}" "${backup_dir}"
-    echo "Cloning DefenseClaw from ${DEFENSECLAW_REPO}..."
-    git clone "${DEFENSECLAW_REPO}" "${DEFENSECLAW_DIR}"
-    sync_defenseclaw_repo_ref
-    return 0
-  fi
-
-  if ! git -C "${DEFENSECLAW_DIR}" diff --quiet || ! git -C "${DEFENSECLAW_DIR}" diff --cached --quiet; then
-    echo "DefenseClaw repo has local changes; skipping automatic git pull."
-    return 0
-  fi
-
-  sync_defenseclaw_repo_ref
+  uv venv "${DC_VENV_DIR}" --python "${python_bin}"
+  uv pip install --reinstall --python "${DC_PYTHON}" "${target_dir}/${wheel_name}"
+  echo "DefenseClaw CLI installed: ${DC_CLI}"
 }
 
-patch_defenseclaw_guardrail_api_base() {
-  python3 - "${DEFENSECLAW_DIR}" <<'PY'
-from pathlib import Path
-import re
-import sys
+install_plugin_from_artifact() {
+  local target_dir="$1"
+  local plugin_name="defenseclaw-plugin-${DEFENSECLAW_VERSION}.tar.gz"
 
-
-root = Path(sys.argv[1])
-
-config_go = root / "internal" / "config" / "config.go"
-config_py = root / "cli" / "defenseclaw" / "config.py"
-proxy_go = root / "internal" / "gateway" / "proxy.go"
-provider_go = root / "internal" / "gateway" / "provider.go"
-provider_openai_go = root / "internal" / "gateway" / "provider_openai.go"
-
-
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    if old not in text:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    return text.replace(old, new, 1)
-
-
-def inject_after_line_once(text: str, anchor: str, addition: str, label: str) -> str:
-    if addition.strip() in text:
-        return text
-    if anchor not in text:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    return text.replace(anchor, anchor + addition, 1)
-
-
-def guardrail_block(text: str, label: str) -> str:
-    match = re.search(r"type GuardrailConfig struct \{\n(?P<body>.*?)\n\}", text, re.S)
-    if not match:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    return match.group("body")
-
-
-def replace_guardrail_block(text: str, transform, label: str) -> str:
-    pattern = r"(type GuardrailConfig struct \{\n)(?P<body>.*?)(\n\})"
-    match = re.search(pattern, text, re.S)
-    if not match:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    body = transform(match.group("body"))
-    return text[:match.start()] + match.group(1) + body + match.group(3) + text[match.end():]
-
-
-def replace_guardrail_dataclass(text: str, transform, label: str) -> str:
-    pattern = r"(@dataclass\nclass GuardrailConfig:\n)(?P<body>(?:    .*\n)+)"
-    match = re.search(pattern, text)
-    if not match:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    body = transform(match.group("body"))
-    return text[:match.start()] + match.group(1) + body + text[match.end():]
-
-
-def replace_guardrail_merge(text: str, transform, label: str) -> str:
-    pattern = r"(def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n)(?P<body>.*?)(\n    \))"
-    match = re.search(pattern, text, re.S)
-    if not match:
-        raise SystemExit(f"Could not find {label} while patching DefenseClaw for the lab.")
-    body = transform(match.group("body"))
-    return text[:match.start()] + match.group(1) + body + match.group(3) + text[match.end():]
-
-
-def patch_proxy_provider_wiring(text: str) -> str:
-    if "NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)" in text:
-        return text
-
-    current_old = (
-        "provider, err := NewProvider(cfgModel, apiKey)\n"
-        "\tif err != nil {\n"
-        '\t\tfmt.Fprintf(os.Stderr, "[guardrail] failed to create provider for %q: %v\\n", cfgModel, err)\n'
-        "\t\treturn nil\n"
-        "\t}\n"
-        "\treturn provider\n"
-    )
-    current_new = (
-        "provider, err := NewProviderWithBase(cfgModel, apiKey, p.cfg.APIBase)\n"
-        "\tif err != nil {\n"
-        '\t\tfmt.Fprintf(os.Stderr, "[guardrail] failed to create provider for %q: %v\\n", cfgModel, err)\n'
-        "\t\treturn nil\n"
-        "\t}\n"
-        "\treturn provider\n"
-    )
-
-    legacy_old = (
-        "provider, err := NewProvider(cfg.Model, apiKey)\n"
-        "\tif err != nil {\n"
-        '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
-        "\t}\n"
-    )
-    legacy_new = (
-        "provider, err := NewProviderWithBase(cfg.Model, apiKey, cfg.APIBase)\n"
-        "\tif err != nil {\n"
-        '\t\treturn nil, fmt.Errorf("proxy: create provider: %w", err)\n'
-        "\t}\n"
-    )
-
-    if current_old in text:
-        return text.replace(current_old, current_new, 1)
-    if legacy_old in text:
-        return text.replace(legacy_old, legacy_new, 1)
-
-    raise SystemExit("Could not find guardrail provider wiring while patching DefenseClaw for the lab.")
-
-
-def pick_openai_provider_file() -> Path:
-    if provider_openai_go.exists():
-        return provider_openai_go
-    return provider_go
-
-
-def patch_openai_provider_file(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    if "openAIChatCompletionURLs(" in text:
-        return
-
-    # Newer DefenseClaw builds use the Bifrost-backed provider layer in
-    # provider.go, so there is no dedicated OpenAI helper block to patch.
-    if "type openaiProvider struct {" not in text and "func NewProviderWithBase(" in text:
-        return
-
-    text = replace_once(
-        text,
-        "type openaiProvider struct {\n\tmodel   string\n\tapiKey  string\n\tbaseURL string\n}\n",
-        "type openaiProvider struct {\n\tmodel   string\n\tapiKey  string\n\tbaseURL string\n}\n\n"
-        "func openAIChatCompletionURLs(baseURL string) []string {\n"
-        '\tbase := strings.TrimRight(baseURL, "/")\n\n'
-        "\tswitch {\n"
-        '\tcase base == "":\n'
-        '\t\treturn []string{"/v1/chat/completions"}\n'
-        '\tcase strings.HasSuffix(base, "/chat/completions"):\n'
-        "\t\treturn []string{base}\n"
-        '\tcase strings.HasSuffix(base, "/v1"):\n'
-        '\t\treturn []string{base + "/chat/completions"}\n'
-        '\tcase base == "https://api.openai.com":\n'
-        '\t\treturn []string{base + "/v1/chat/completions"}\n'
-        "\tdefault:\n"
-        "\t\treturn []string{base + \"/v1/chat/completions\", base + \"/chat/completions\"}\n"
-        "\t}\n"
-        "}\n\n"
-        "func (p *openaiProvider) doChatRequest(ctx context.Context, body []byte) (*http.Response, error) {\n"
-        "\turls := openAIChatCompletionURLs(p.baseURL)\n"
-        "\tvar lastStatusErr error\n\n"
-        "\tfor idx, url := range urls {\n"
-        "\t\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n"
-        "\t\tif err != nil {\n"
-        '\t\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
-        "\t\t}\n"
-        '\t\thttpReq.Header.Set("Content-Type", "application/json")\n'
-        '\t\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
-        "\t\tresp, err := providerHTTPClient.Do(httpReq)\n"
-        "\t\tif err != nil {\n"
-        '\t\t\treturn nil, fmt.Errorf("provider: request failed: %w", err)\n'
-        "\t\t}\n\n"
-        "\t\tif resp.StatusCode != http.StatusNotFound || idx == len(urls)-1 {\n"
-        "\t\t\treturn resp, nil\n"
-        "\t\t}\n\n"
-        "\t\trespBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))\n"
-        "\t\tresp.Body.Close()\n"
-        '\t\tlastStatusErr = fmt.Errorf("provider: upstream returned %d: %s", resp.StatusCode, string(respBody))\n'
-        "\t}\n\n"
-        "\tif lastStatusErr != nil {\n"
-        "\t\treturn nil, lastStatusErr\n"
-        "\t}\n"
-        '\treturn nil, fmt.Errorf("provider: no upstream URLs available")\n'
-        "}\n",
-        "openai provider helper insertion",
-    )
-
-    text = replace_once(
-        text,
-        '\turl := p.baseURL + "/v1/chat/completions"\n'
-        '\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n'
-        '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
-        '\t}\n'
-        '\thttpReq.Header.Set("Content-Type", "application/json")\n'
-        '\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
-        '\tresp, err := providerHTTPClient.Do(httpReq)\n'
-        '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("provider: request failed: %w", err)\n'
-        '\t}\n',
-        "\tresp, err := p.doChatRequest(ctx, body)\n"
-        "\tif err != nil {\n"
-        "\t\treturn nil, err\n"
-        "\t}\n",
-        "openai provider non-stream request path",
-    )
-
-    text = replace_once(
-        text,
-        '\turl := p.baseURL + "/v1/chat/completions"\n'
-        '\thttpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))\n'
-        '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("provider: create request: %w", err)\n'
-        '\t}\n'
-        '\thttpReq.Header.Set("Content-Type", "application/json")\n'
-        '\thttpReq.Header.Set("Authorization", "Bearer "+p.apiKey)\n\n'
-        '\tresp, err := providerHTTPClient.Do(httpReq)\n'
-        '\tif err != nil {\n'
-        '\t\treturn nil, fmt.Errorf("provider: stream request failed: %w", err)\n'
-        '\t}\n',
-        "\tresp, err := p.doChatRequest(ctx, body)\n"
-        "\tif err != nil {\n"
-        "\t\treturn nil, err\n"
-        "\t}\n",
-        "openai provider streaming request path",
-    )
-
-    path.write_text(text, encoding="utf-8")
-
-
-text = config_go.read_text(encoding="utf-8")
-if "APIBase" not in guardrail_block(text, "GuardrailConfig"):
-    text = replace_guardrail_block(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '\tAPIKeyEnv     string      `mapstructure:"api_key_env"     yaml:"api_key_env"`\n',
-            '\tAPIBase       string      `mapstructure:"api_base"        yaml:"api_base"`\n',
-            "GuardrailConfig.APIBase",
-        ),
-        "GuardrailConfig",
-    )
-config_go.write_text(text, encoding="utf-8")
-
-text = config_py.read_text(encoding="utf-8")
-guardrail_dataclass = re.search(
-    r"@dataclass\nclass GuardrailConfig:\n(?P<body>(?:    .*\n)+)",
-    text,
-)
-if not guardrail_dataclass or 'api_base: str = ""' not in guardrail_dataclass.group("body"):
-    text = replace_guardrail_dataclass(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '    api_key_env: str = ""           # env var holding the API key, e.g. "ANTHROPIC_API_KEY"\n',
-            '    api_base: str = ""              # optional custom OpenAI-compatible base URL\n',
-            "GuardrailConfig.api_base",
-        ),
-        "GuardrailConfig dataclass",
-    )
-merge_guardrail = re.search(
-    r"def _merge_guardrail\(raw: dict\[str, Any\] \| None, data_dir: str\) -> GuardrailConfig:\n.*?return GuardrailConfig\(\n(?P<body>.*?)\n    \)",
-    text,
-    re.S,
-)
-if not merge_guardrail or 'api_base=raw.get("api_base", ""),' not in merge_guardrail.group("body"):
-    text = replace_guardrail_merge(
-        text,
-        lambda body: inject_after_line_once(
-            body,
-            '        api_key_env=raw.get("api_key_env", ""),\n',
-            '        api_base=raw.get("api_base", ""),\n',
-            "_merge_guardrail api_base",
-        ),
-        "_merge_guardrail",
-    )
-config_py.write_text(text, encoding="utf-8")
-
-text = proxy_go.read_text(encoding="utf-8")
-text = patch_proxy_provider_wiring(text)
-proxy_go.write_text(text, encoding="utf-8")
-
-patch_openai_provider_file(pick_openai_provider_file())
-PY
-
-  if command -v gofmt >/dev/null 2>&1; then
-    gofmt_targets=(internal/config/config.go internal/gateway/proxy.go)
-    if [ -f internal/gateway/provider.go ]; then
-      gofmt_targets+=(internal/gateway/provider.go)
-    fi
-    if [ -f internal/gateway/provider_openai.go ]; then
-      gofmt_targets+=(internal/gateway/provider_openai.go)
-    fi
-    gofmt -w "${gofmt_targets[@]}"
-  fi
+  rm -rf "${DEFENSECLAW_INSTALLED_PLUGIN_DIR}"
+  mkdir -p "${DEFENSECLAW_INSTALLED_PLUGIN_DIR}"
+  tar -xzf "${target_dir}/${plugin_name}" -C "${DEFENSECLAW_INSTALLED_PLUGIN_DIR}"
+  sync_openclaw_plugin_install
 }
 
-# Lab-only hardening: upstream DefenseClaw currently alerts on MEDIUM secret
-# matches. For this privacy replay, we promote explicit secret-exfil prompts to
-# HIGH so action mode blocks them in the lab.
-patch_defenseclaw_lab_privacy_guardrail() {
-  python3 - "${DEFENSECLAW_DIR}" <<'PY'
-from pathlib import Path
-import re
-import sys
+init_defenseclaw() {
+  # shellcheck disable=SC1091
+  source "${DC_VENV_DIR}/bin/activate"
 
+  ensure_lab_scanners
+  defenseclaw init \
+    --skip-install \
+    --non-interactive \
+    --yes \
+    --connector openclaw \
+    --profile action \
+    --scanner-mode local \
+    --no-start-gateway \
+    --no-verify
+  defenseclaw policy activate strict
 
-root = Path(sys.argv[1])
-guardrail_go = root / "internal" / "gateway" / "guardrail.go"
-text = guardrail_go.read_text(encoding="utf-8")
-
-request_verbs_block = """var requestVerbs = []string{
-\t"extract", "reveal", "dump", "print", "list",
+  # Install prepares DefenseClaw, but Module 6 should not read as
+  # "configured" until configure_defenseclaw.sh finishes the handoff.
+  rm -f "${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
 }
 
-var privacyTargets = []string{
-\t"cloud key", "cloud keys", "customer email", "customer emails",
-\t"owner_email", "credentials:", "aws_access_key", "aws_secret_access",
-}
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir}"' EXIT
 
-func containsAnyPattern(text string, patterns []string) bool {
-\tfor _, p := range patterns {
-\t\tif strings.Contains(text, p) {
-\t\t\treturn true
-\t\t}
-\t}
-\treturn false
-}
+platform="$(detect_release_platform)"
 
-"""
+echo "[1/5] Downloading DefenseClaw ${DEFENSECLAW_VERSION} release artifacts..."
+download_release_artifacts "${tmpdir}" "${platform}"
+echo "DefenseClaw release: ${DEFENSECLAW_VERSION}"
+echo "Artifact platform: ${platform}"
 
-if "var requestVerbs = []string{" not in text:
-    anchor = re.search(r"(var exfilPatterns = \[]string\{\n(?:.*\n)*?\}\n\n)", text)
-    if not anchor:
-        raise SystemExit("Could not find exfilPatterns block while patching DefenseClaw for the lab.")
-    text = text[:anchor.end()] + request_verbs_block + text[anchor.end():]
-
-if 'flags = append(flags, "privacy-exfil-request")' not in text:
-    privacy_block = """\tif direction == "prompt" && severity == "MEDIUM" &&
-\t\tcontainsAnyPattern(lower, requestVerbs) &&
-\t\tcontainsAnyPattern(lower, privacyTargets) {
-\t\tseverity = "HIGH"
-\t\tflags = append(flags, "privacy-exfil-request")
-\t}
-
-"""
-
-    scan_local = re.search(
-        r"(func scanLocalPatterns\(direction, content string\) \*ScanVerdict \{\n)(?P<body>.*?)(\n\})",
-        text,
-        re.S,
-    )
-    if not scan_local:
-        raise SystemExit("Could not find scanLocalPatterns while patching DefenseClaw for the lab.")
-
-    body = scan_local.group("body")
-    action_anchor = '\taction := "alert"\n'
-    if action_anchor not in body:
-        raise SystemExit("Could not find guardrail severity block while patching DefenseClaw for the lab.")
-    body = body.replace(action_anchor, privacy_block + action_anchor, 1)
-    text = text[:scan_local.start()] + scan_local.group(1) + body + scan_local.group(3) + text[scan_local.end():]
-
-guardrail_go.write_text(text, encoding="utf-8")
-PY
-
-  if command -v gofmt >/dev/null 2>&1; then
-    gofmt -w internal/gateway/guardrail.go
-  fi
-}
-
-echo "[1/6] Preparing the DefenseClaw repo..."
-ensure_defenseclaw_repo
-
-cd "${DEFENSECLAW_DIR}"
-
-echo "[2/6] Checking the local toolchain..."
-ensure_go_runtime
+echo "[2/5] Preparing the Python environment..."
 ensure_uv_runtime
-
-echo "[3/6] Applying the lab compatibility and privacy patches..."
-patch_defenseclaw_guardrail_api_base
-patch_defenseclaw_lab_privacy_guardrail
-
-if ! command -v npm >/dev/null 2>&1; then
-  echo "npm is required to build the DefenseClaw plugin." >&2
-  echo "Run the OpenClaw install step first so Node.js is bootstrapped into the lab pod." >&2
-  exit 1
-fi
-
 UV_PYTHON_BIN="$(resolve_defenseclaw_python)"
+install_cli_from_wheel "${tmpdir}" "${UV_PYTHON_BIN}"
 
-if defenseclaw_venv_is_broken; then
-  echo "Detected a broken DefenseClaw virtual environment. Rebuilding .venv..."
-  rm -rf .venv
-fi
-
-if [ -x ".venv/bin/python" ] && ! python_version_ok ".venv/bin/python" 3 11; then
-  rm -rf .venv
-fi
-
-echo "[4/6] Building the DefenseClaw Python environment..."
-uv venv .venv --python "${UV_PYTHON_BIN}"
-uv pip install -e . --python .venv/bin/python
-export npm_config_audit=false
-export npm_config_fund=false
-export npm_config_update_notifier=false
+echo "[3/5] Installing the gateway binary..."
 stop_running_defenseclaw_gateway
-echo "[5/6] Installing the gateway and OpenClaw plugin..."
-if ! make gateway-install plugin-install; then
-  echo "Retrying DefenseClaw install after stopping any leftover gateway process..."
-  stop_running_defenseclaw_gateway
-  make gateway-install plugin-install
-fi
-hash -r
+install_gateway_from_artifact "${tmpdir}" "${platform}"
 
-if ! command -v defenseclaw-gateway >/dev/null 2>&1; then
-  echo
-  echo "DefenseClaw gateway is still not on PATH after the first install pass." >&2
-  echo "Recovery: run 'make gateway-install' from ${DEFENSECLAW_DIR} and then rerun this helper." >&2
-  exit 1
-fi
+echo "[4/5] Installing the OpenClaw plugin artifact..."
+install_plugin_from_artifact "${tmpdir}"
 
-# shellcheck disable=SC1091
-source .venv/bin/activate
-echo "[6/6] Installing scanner packages and initializing DefenseClaw..."
-ensure_lab_scanners
-defenseclaw init --skip-install
-defenseclaw policy activate strict
-
-# Keep the lab flow honest: install prepares DefenseClaw, but Module 6
-# should not read as "configured" until configure_defenseclaw.sh finishes.
-rm -f "${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
+echo "[5/5] Initializing DefenseClaw for the lab..."
+init_defenseclaw
 
 defenseclaw status
