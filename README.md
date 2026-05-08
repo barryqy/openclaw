@@ -20,7 +20,7 @@ Student repo for the DevNet Learning Lab that tells one clear story:
 - `scripts/run_skill_exfil_demo.sh` shows the 🚨 malicious skill stealing fake secrets into a localhost collector.
 - `scripts/run_mcp_abuse_demo.py` shows the 🚨 malicious MCP tools reading a fake credential file and executing arbitrary code.
 - `scripts/run_llm_guardrail_demo.py` drives the baseline and guarded prompt/privacy tests against the same LLM path.
-- `scripts/install_defenseclaw.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. In a small pod, the install helper can also bootstrap user-space Go, `uv`, and a newer Python for the scanner toolchain.
+- `scripts/install_defenseclaw.sh` and `scripts/configure_defenseclaw.sh` bring DefenseClaw into the same OpenClaw environment. The install helper downloads the published DefenseClaw release artifacts, prepares `uv` and Python for the scanner toolchain, then restages the OpenClaw plugin into the live extension path.
 - `scripts/install_openclaw.sh` is the one-click student setup helper for OpenClaw. In a fresh pod it also bootstraps Node 24 before it configures the lab workspace and points OpenClaw at the built-in lab LLM over its OpenAI-compatible endpoint.
 - `scripts/manage_openclaw_gateway.sh` keeps the OpenClaw gateway alive in the background for this lab session without relying on systemd.
 
@@ -52,7 +52,7 @@ python3 ./scripts/run_llm_guardrail_demo.py guarded-injection
 python3 ./scripts/run_llm_guardrail_demo.py guarded-privacy
 ./scripts/install_safe_skill.sh
 /home/developer/src/defenseclaw/.venv/bin/defenseclaw skill scan release-brief-helper --path "${OPENCLAW_SKILLS_DIR}/release-brief-helper"
-/home/developer/src/defenseclaw/.venv/bin/defenseclaw mcp set safe_reference_live --command "$(command -v python3)" --args "[\"$PWD/mcp/safe-migration-reference-server.py\"]" --transport stdio
+/home/developer/src/defenseclaw/.venv/bin/defenseclaw mcp set safe_reference_live --command "$PWD/.venv/bin/python" --args "[\"$PWD/mcp/safe-migration-reference-server.py\"]" --transport stdio
 ./scripts/summarize_results.sh
 ```
 
@@ -81,5 +81,5 @@ That helper walks through the normal local OpenClaw onboarding flow, then offers
 - The exfiltration demo only posts to `127.0.0.1`.
 - The lab assumes the DevNet image provides the built-in `LLM_*` variables used by `install_openclaw.sh`.
 - `llm-image/<model>` in the lab config is the lab's custom provider label. It still talks to the built-in Learning Lab LLM from `LLM_BASE_URL` over an OpenAI-compatible API, not a separate public OpenAI account.
-- Current upstream DefenseClaw still treats MEDIUM secret matches as alert-only. This lab intentionally applies a small local guardrail hardening so the privacy replay blocks explicit secret-exfil prompts on the protected path.
+- The guarded prompt and privacy replays use DefenseClaw's local sidecar inspection endpoint so the lab demonstrates prompt-time blocking without routing the request through the model.
 - The guide avoids `source .venv/bin/activate` on purpose so the shell stays predictable between OpenClaw and DefenseClaw steps.

@@ -43,11 +43,13 @@ def derive_sidecar_master_key(device_key_file: str) -> str:
 
         path = Path(raw_path).expanduser()
         try:
-            digest = hmac.new(
-                b"defenseclaw-proxy-master-key",
+            digest = hashlib.pbkdf2_hmac(
+                "sha256",
                 path.read_bytes(),
-                hashlib.sha256,
-            ).hexdigest()[:32]
+                b"defenseclaw-proxy-master-key",
+                100_000,
+                dklen=32,
+            ).hex()
         except OSError:
             continue
 

@@ -7,7 +7,7 @@ IMAGE_NAME="${1:-ghcr.io/example/openclaw-defenseclaw}"
 IMAGE_TAG="${2:-latest}"
 PLATFORMS="${PLATFORMS:-linux/amd64,linux/arm64}"
 OPENCLAW_VERSION="${OPENCLAW_VERSION:-2026.3.24}"
-DEFENSECLAW_VERSION="${DEFENSECLAW_VERSION:-0.2.0}"
+DEFENSECLAW_VERSION="${DEFENSECLAW_VERSION:-0.4.0}"
 
 shift $(( $# > 0 ? 1 : 0 ))
 shift $(( $# > 0 ? 1 : 0 ))

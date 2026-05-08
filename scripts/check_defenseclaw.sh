@@ -11,8 +11,10 @@ DC_PYTHON="${DC_VENV_DIR}/bin/python"
 DC_CLI="${DC_VENV_DIR}/bin/defenseclaw"
 DC_CFG_PATH="${HOME}/.defenseclaw/config.yaml"
 DC_MARKER_PATH="${DEFENSECLAW_CONFIGURED_MARKER_FILE}"
-DC_GUARDRAIL_SRC="${DEFENSECLAW_DIR}/internal/gateway/guardrail.go"
+DC_POLICY_DATA_PATH="${HOME}/.defenseclaw/policies/rego/data.json"
 OPENCLAW_GATEWAY_URL="http://${OPENCLAW_GATEWAY_HOST}:${OPENCLAW_GATEWAY_PORT}/health"
+OPENCLAW_PLUGIN_DIR="${OPENCLAW_DEFENSECLAW_PLUGIN_DIR}"
+OPENCLAW_PLUGIN_ENTRY="${OPENCLAW_PLUGIN_DIR}/dist/index.js"
 
 check_python_module() {
   local module_name="$1"
@@ -87,9 +89,10 @@ cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
 guardrail = cfg.get("guardrail", {}) or {}
 
 enabled = bool(guardrail.get("enabled", False))
-model = str(guardrail.get("model", "") or "").strip()
+guardrail_llm = guardrail.get("llm", {}) or {}
+model = str(guardrail_llm.get("model", "") or guardrail.get("model", "") or "").strip()
 model_name = str(guardrail.get("model_name", "") or "").strip()
-api_base = str(guardrail.get("api_base", "") or "").strip()
+api_base = str(guardrail_llm.get("base_url", "") or guardrail.get("api_base", "") or "").strip()
 
 raise SystemExit(0 if enabled and model and model_name and api_base else 1)
 PY
@@ -101,28 +104,53 @@ lab_guardrail_is_configured() {
 }
 
 print_defenseclaw_summary() {
-  "${DC_PYTHON}" - "${DEFENSECLAW_DIR}" "${DC_CFG_PATH}" "${DC_MARKER_PATH}" "${DC_GUARDRAIL_SRC}" <<'PY'
+  "${DC_PYTHON}" - "${DEFENSECLAW_DIR}" "${DC_CFG_PATH}" "${DC_MARKER_PATH}" "${DC_POLICY_DATA_PATH}" <<'PY'
+import importlib.metadata
+import json
 from pathlib import Path
 import sys
 
 import yaml
 
-repo_dir = Path(sys.argv[1])
+install_dir = Path(sys.argv[1])
 cfg_path = Path(sys.argv[2])
 marker_path = Path(sys.argv[3])
-guardrail_src = Path(sys.argv[4])
+policy_data_path = Path(sys.argv[4])
 
-print(f"DEFENSECLAW_DIR={repo_dir}")
-print(f"DEFENSECLAW_VENV={repo_dir / '.venv'}")
-print(f"DEFENSECLAW_CLI={repo_dir / '.venv' / 'bin' / 'defenseclaw'}")
+try:
+    version = importlib.metadata.version("defenseclaw")
+except importlib.metadata.PackageNotFoundError:
+    version = "unknown"
+
+print(f"DEFENSECLAW_VERSION={version}")
+print(f"DEFENSECLAW_DIR={install_dir}")
+print(f"DEFENSECLAW_VENV={install_dir / '.venv'}")
+print(f"DEFENSECLAW_CLI={install_dir / '.venv' / 'bin' / 'defenseclaw'}")
+
+if policy_data_path.exists():
+    try:
+        policy_data = json.loads(policy_data_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        policy_data = {}
+    policy_cfg = policy_data.get("config", {}) or {}
+    policy_name = str(
+        policy_data.get("policy_name", "") or policy_cfg.get("policy_name", "") or ""
+    ).strip()
+    guardrail_data = policy_data.get("guardrail", {}) or {}
+    if policy_name:
+        print(f"POLICY={policy_name}")
+    if guardrail_data:
+        print(f"GUARDRAIL_BLOCK_THRESHOLD={guardrail_data.get('block_threshold', '')}")
+        print(f"GUARDRAIL_ALERT_THRESHOLD={guardrail_data.get('alert_threshold', '')}")
 
 if cfg_path.exists():
     cfg = yaml.safe_load(cfg_path.read_text(encoding='utf-8')) or {}
     guardrail = cfg.get("guardrail", {}) or {}
+    guardrail_llm = guardrail.get("llm", {}) or {}
     enabled = bool(guardrail.get("enabled", False))
-    model = str(guardrail.get("model", "") or "").strip()
+    model = str(guardrail_llm.get("model", "") or guardrail.get("model", "") or "").strip()
     model_name = str(guardrail.get("model_name", "") or "").strip()
-    api_base = str(guardrail.get("api_base", "") or "").strip()
+    api_base = str(guardrail_llm.get("base_url", "") or guardrail.get("api_base", "") or "").strip()
     configured = marker_path.exists() and enabled and model and model_name and api_base
 
     if configured:
@@ -139,17 +167,11 @@ if cfg_path.exists():
 else:
     print("GUARDRAIL_STATUS=not-configured-yet")
     print("NEXT_STEP=./scripts/configure_defenseclaw.sh")
-
-privacy_rule_enabled = False
-if guardrail_src.exists():
-    privacy_rule_enabled = "privacy-exfil-request" in guardrail_src.read_text(encoding="utf-8")
-
-print(f"LAB_PRIVACY_RULE={'enabled' if privacy_rule_enabled else 'missing'}")
 PY
 }
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
-  echo "DefenseClaw repo not found at ${DEFENSECLAW_DIR}." >&2
+  echo "DefenseClaw install directory not found at ${DEFENSECLAW_DIR}." >&2
   echo "Run ./scripts/install_defenseclaw.sh first." >&2
   exit 1
 fi
@@ -182,6 +204,15 @@ if check_python_module "mcpscanner"; then
 else
   echo "MCP_SCANNER=missing" >&2
   echo "Run ./scripts/install_defenseclaw.sh again to reinstall the scanner packages." >&2
+  exit 1
+fi
+
+echo "OPENCLAW_PLUGIN_DIR=${OPENCLAW_PLUGIN_DIR}"
+if [ -f "${OPENCLAW_PLUGIN_ENTRY}" ] && [ -f "${OPENCLAW_PLUGIN_DIR}/package.json" ]; then
+  echo "OPENCLAW_PLUGIN=ready"
+else
+  echo "OPENCLAW_PLUGIN=missing" >&2
+  echo "Run ./scripts/install_defenseclaw.sh again to restage the DefenseClaw plugin into OpenClaw." >&2
   exit 1
 fi
 
