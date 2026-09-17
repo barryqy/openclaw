@@ -52,9 +52,52 @@ export DEFENSECLAW_INSTALLED_PLUGIN_DIR="${DEFENSECLAW_INSTALLED_PLUGIN_DIR:-${H
 defenseclawRepo="${DEFENSECLAW_REPO:-${DEFENSECLAW_TEMP_REPO:-https://github.com/cisco-ai-defense/defenseclaw.git}}"
 export DEFENSECLAW_REPO="${defenseclawRepo}"
 export DEFENSECLAW_TEMP_REPO="${defenseclawRepo}"
-export DEFENSECLAW_VERSION="${DEFENSECLAW_VERSION:-0.4.0}"
+export DEFENSECLAW_VERSION="${DEFENSECLAW_VERSION:-0.8.0}"
 export DEFENSECLAW_RELEASE_BASE_URL="${DEFENSECLAW_RELEASE_BASE_URL:-https://github.com/cisco-ai-defense/defenseclaw/releases/download/${DEFENSECLAW_VERSION}}"
+export OPENCLAW_OPENSHELL_INSTALL_DIR="${OPENCLAW_OPENSHELL_INSTALL_DIR:-${HOME}/.local/bin}"
+export OPENCLAW_OPENSHELL_INSTALLER_URL="${OPENCLAW_OPENSHELL_INSTALLER_URL:-https://raw.githubusercontent.com/cisco-ai-defense/defenseclaw/${DEFENSECLAW_VERSION}/scripts/install-openshell-sandbox.sh}"
+export OPENCLAW_OPENSHELL_VERSION="${OPENCLAW_OPENSHELL_VERSION:-0.0.16}"
 export OPENCLAW_DEMO_PORT="${OPENCLAW_DEMO_PORT:-17777}"
+
+case "$(uname -m)" in
+  x86_64|amd64)
+    export OPENCLAW_OPENSHELL_SHA256="${OPENCLAW_OPENSHELL_SHA256:-9a2927b5f405e83a86841fb06389f9a8c89e35792a62f943beb8e6f9f0c2ebf9}"
+    export OPENCLAW_OPENSHELL_ARCH_DIGEST="${OPENCLAW_OPENSHELL_ARCH_DIGEST:-sha256:a0b1ec4e7fcbd5538148817b3a31b0d47de1ff79c95adeb30aa082c63721d5aa}"
+    ;;
+  aarch64|arm64)
+    export OPENCLAW_OPENSHELL_SHA256="${OPENCLAW_OPENSHELL_SHA256:-218267d74432698fe630f465d6e9ab156e48fd4b05c4dec77a8dd1791db3ed93}"
+    export OPENCLAW_OPENSHELL_ARCH_DIGEST="${OPENCLAW_OPENSHELL_ARCH_DIGEST:-sha256:266c83b1b73b94e89e5641760fb6aba5651b245dc59ab19e76fbf40b8b539ae1}"
+    ;;
+esac
+
+openclaw_mcp_python() {
+  local python_bin="${OPENCLAW_MCP_PYTHON_BIN:-${OPENCLAW_ROOT}/.venv/bin/python}"
+
+  if [ ! -x "${python_bin}" ]; then
+    echo "MCP Python runtime not found at ${python_bin}. Run ./scripts/bootstrap_lab.sh first." >&2
+    return 1
+  fi
+
+  if ! "${python_bin}" -c 'from mcp.server.fastmcp import FastMCP' >/dev/null 2>&1; then
+    if [ "${python_bin}" != "${OPENCLAW_ROOT}/.venv/bin/python" ]; then
+      echo "${python_bin} cannot import mcp.server.fastmcp. Use the OpenClaw repo venv or install the lab requirements in this venv." >&2
+      return 1
+    fi
+
+    echo "Installing the clean MCP server dependency in ${python_bin}..." >&2
+    if ! "${python_bin}" -m pip install -r "${OPENCLAW_ROOT}/requirements.txt" >&2; then
+      echo "Could not install the OpenClaw lab Python requirements." >&2
+      return 1
+    fi
+  fi
+
+  if ! "${python_bin}" -c 'from mcp.server.fastmcp import FastMCP' >/dev/null 2>&1; then
+    echo "${python_bin} still cannot import mcp.server.fastmcp." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${python_bin}"
+}
 
 tmpLabApiBase="${OPENCLAW_LLM_API_BASE:-}"
 if [ -z "${tmpLabApiBase}" ] && [ -n "${LLM_BASE_URL:-}" ]; then

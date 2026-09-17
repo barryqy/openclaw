@@ -207,6 +207,12 @@ else
   exit 1
 fi
 
+if command -v openshell-sandbox >/dev/null 2>&1; then
+  echo "OPENSHELL_SANDBOX=ready"
+else
+  echo "OPENSHELL_SANDBOX=missing"
+fi
+
 echo "OPENCLAW_PLUGIN_DIR=${OPENCLAW_PLUGIN_DIR}"
 if [ -f "${OPENCLAW_PLUGIN_ENTRY}" ] && [ -f "${OPENCLAW_PLUGIN_DIR}/package.json" ]; then
   echo "OPENCLAW_PLUGIN=ready"

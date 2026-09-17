@@ -6,17 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CASE_NAME="${1:-full-replay}"
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lab-env.sh"
-PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-
-if [ ! -x "${PYTHON_BIN}" ]; then
-  PYTHON_BIN="$(command -v python3)"
-fi
-
-HOST_PYTHON_BIN="${OPENCLAW_MCP_PYTHON_BIN:-${PYTHON_BIN}}"
-
-if [ ! -x "${HOST_PYTHON_BIN}" ]; then
-  HOST_PYTHON_BIN="$(command -v python3)"
-fi
+PYTHON_BIN="$(openclaw_mcp_python)"
+HOST_PYTHON_BIN="${PYTHON_BIN}"
 
 if [ ! -d "${DEFENSECLAW_DIR}" ]; then
   echo "DefenseClaw install directory not found at ${DEFENSECLAW_DIR}." >&2
@@ -108,6 +99,12 @@ set_safe_reference_with_fallback() {
 
   if printf '%s' "${output}" | grep -Eq 'fastmcp is required|Unable to connect to stdio MCP server|Connection closed'; then
     echo "DefenseClaw safe MCP scan failed with the host Python. Applying the lab MCP fallback..."
+    bash "${ROOT_DIR}/scripts/add_safe_mcp.sh"
+    return 0
+  fi
+
+  if printf '%s' "${output}" | grep -Eq 'not an allowlisted stdio launcher|allowed: npx, uvx'; then
+    echo "DefenseClaw refused to spawn the local Python MCP during scan. Applying the known-safe lab MCP fallback..."
     bash "${ROOT_DIR}/scripts/add_safe_mcp.sh"
     return 0
   fi

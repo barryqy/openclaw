@@ -11,13 +11,7 @@ if ! command -v openclaw >/dev/null 2>&1; then
   exit 1
 fi
 
-PYTHON_BIN="${ROOT_DIR}/.venv/bin/python"
-if [ ! -x "${PYTHON_BIN}" ]; then
-  PYTHON_BIN="/usr/bin/python3"
-fi
-if [ ! -x "${PYTHON_BIN}" ]; then
-  PYTHON_BIN="$(command -v python3)"
-fi
+PYTHON_BIN="$(openclaw_mcp_python)"
 
 write_safe_mcp_entry() {
   OPENCLAW_CONFIG_FILE="${OPENCLAW_CONFIG_FILE}" \

@@ -328,6 +328,94 @@ install_plugin_from_artifact() {
   sync_openclaw_plugin_install
 }
 
+ensure_openshell_sandbox_runtime() {
+  local installer_path
+
+  if [ "$(uname -s)" != "Linux" ]; then
+    echo "Skipping OpenShell sandbox runtime setup: Linux is required."
+    return 0
+  fi
+
+  if command -v openshell-sandbox >/dev/null 2>&1; then
+    echo "OpenShell sandbox runtime ready: $(command -v openshell-sandbox)"
+    return 0
+  fi
+
+  echo "Installing OpenShell sandbox runtime..."
+  mkdir -p "${OPENCLAW_OPENSHELL_INSTALL_DIR}"
+  installer_path="${tmpdir}/install-openshell-sandbox.sh"
+
+  if ! download_file "${OPENCLAW_OPENSHELL_INSTALLER_URL}" "${installer_path}"; then
+    echo "Could not download the ${DEFENSECLAW_VERSION} OpenShell installer; trying main..." >&2
+    if ! download_file "https://raw.githubusercontent.com/cisco-ai-defense/defenseclaw/main/scripts/install-openshell-sandbox.sh" "${installer_path}"; then
+      echo "OpenShell sandbox runtime is optional; continuing without it." >&2
+      return 0
+    fi
+  fi
+
+  if ! OPENSHELL_VERSION="${OPENCLAW_OPENSHELL_VERSION}" \
+    OPENSHELL_SANDBOX_SHA256="${OPENCLAW_OPENSHELL_SHA256:-}" \
+    DEFENSECLAW_OPENSHELL_ARCH_DIGEST="${OPENCLAW_OPENSHELL_ARCH_DIGEST:-}" \
+    bash "${installer_path}" --install-dir "${OPENCLAW_OPENSHELL_INSTALL_DIR}"; then
+    echo "OpenShell sandbox runtime install failed; continuing without it." >&2
+    return 0
+  fi
+
+  export PATH="${OPENCLAW_OPENSHELL_INSTALL_DIR}:${PATH}"
+  hash -r
+
+  if command -v openshell-sandbox >/dev/null 2>&1; then
+    echo "OpenShell sandbox runtime ready: $(command -v openshell-sandbox)"
+  else
+    echo "OpenShell sandbox runtime was installed, but is not on PATH." >&2
+  fi
+}
+
+ensure_sandbox_user() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    return 0
+  fi
+
+  if id sandbox >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1 || ! sudo -n true >/dev/null 2>&1; then
+    echo "Skipping sandbox user setup: passwordless sudo is not available." >&2
+    return 0
+  fi
+
+  if ! getent group sandbox >/dev/null; then
+    sudo -n groupadd --system sandbox || true
+  fi
+
+  if ! id sandbox >/dev/null 2>&1; then
+    sudo -n useradd --system --gid sandbox --create-home \
+      --home-dir /home/sandbox --shell /bin/bash sandbox || true
+  fi
+}
+
+set_openshell_binary_config() {
+  if ! command -v openshell-sandbox >/dev/null 2>&1; then
+    return 0
+  fi
+
+  "${DC_PYTHON}" <<'PY'
+from pathlib import Path
+
+import yaml
+
+cfg_path = Path.home() / ".defenseclaw" / "config.yaml"
+if not cfg_path.exists():
+    raise SystemExit(0)
+
+cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+openshell = cfg.setdefault("openshell", {})
+openshell["binary"] = "openshell-sandbox"
+cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+PY
+}
+
 init_defenseclaw() {
   # shellcheck disable=SC1091
   source "${DC_VENV_DIR}/bin/activate"
@@ -343,6 +431,7 @@ init_defenseclaw() {
     --no-start-gateway \
     --no-verify
   defenseclaw policy activate strict
+  set_openshell_binary_config
 
   # Install prepares DefenseClaw, but Module 6 should not read as
   # "configured" until configure_defenseclaw.sh finishes the handoff.
@@ -370,6 +459,10 @@ install_gateway_from_artifact "${tmpdir}" "${platform}"
 
 echo "[4/5] Installing the OpenClaw plugin artifact..."
 install_plugin_from_artifact "${tmpdir}"
+
+echo "Preparing the optional OpenShell sandbox runtime..."
+ensure_openshell_sandbox_runtime
+ensure_sandbox_user
 
 echo "[5/5] Initializing DefenseClaw for the lab..."
 init_defenseclaw
